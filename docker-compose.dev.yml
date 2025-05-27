@@ -1,0 +1,169 @@
+# 基礎開發環境配置
+version: '3.8'
+
+services:
+  # GitHub MCP 服務器
+  github-mcp:
+    image: mcp/github
+    container_name: github-mcp-dev
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    networks:
+      - mcp-dev-network
+    labels:
+      - "mcp.env=development"
+      - "mcp.server=github"
+    healthcheck:
+      test: ["CMD", "ps", "aux", "|", "grep", "node"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 時間工具服務器
+  time-mcp:
+    image: mcp/time
+    container_name: time-mcp-dev
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.2
+    networks:
+      - mcp-dev-network
+    labels:
+      - "mcp.env=development"
+      - "mcp.server=time"
+
+  # Puppeteer 網頁自動化服務器
+  puppeteer-mcp:
+    image: mcp/puppeteer
+    container_name: puppeteer-mcp-dev
+    environment:
+      - DOCKER_CONTAINER=true
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
+    networks:
+      - mcp-dev-network
+    labels:
+      - "mcp.env=development"
+      - "mcp.server=puppeteer"
+    # 掛載共享記憶體 (Puppeteer 需要)
+    shm_size: 2gb
+
+  # PostgreSQL MCP 服務器 (可選)
+  postgres-mcp:
+    image: mcp/postgres
+    container_name: postgres-mcp-dev
+    environment:
+      - POSTGRES_URL=${POSTGRES_URL:-postgresql://postgres:password@postgres-db:5432/testdb}
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    networks:
+      - mcp-dev-network
+    labels:
+      - "mcp.env=development"
+      - "mcp.server=postgres"
+    depends_on:
+      - postgres-db
+
+  # 測試用 PostgreSQL 資料庫
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: postgres-db-dev
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - mcp-dev-network
+    labels:
+      - "mcp.env=development"
+      - "mcp.type=database"
+
+  # Redis (用於緩存和會話管理)
+  redis:
+    image: redis:7-alpine
+    container_name: redis-dev
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - mcp-dev-network
+    labels:
+      - "mcp.env=development"
+      - "mcp.type=cache"
+
+  # 監控和日誌收集
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer-dev
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - mcp-dev-network
+    labels:
+      - "mcp.env=development"
+      - "mcp.type=monitoring"
+
+networks:
+  mcp-dev-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.21.0.0/16
+    labels:
+      - "mcp.env=development"
+
+volumes:
+  postgres_data:
+    driver: local
+    labels:
+      - "mcp.env=development"
+      - "mcp.type=database"
+  
+  redis_data:
+    driver: local
+    labels:
+      - "mcp.env=development"
+      - "mcp.type=cache"
+  
+  portainer_data:
+    driver: local
+    labels:
+      - "mcp.env=development"
+      - "mcp.type=monitoring"

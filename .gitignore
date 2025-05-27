@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtualenv
+.venv/
+venv/
+ENV/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Jupyter
+.ipynb_checkpoints
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# Env
+.env
+.env.*
+
+# Others
+*.bak
+*.swp
+*.tmp 

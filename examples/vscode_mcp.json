@@ -1,0 +1,117 @@
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "github_token",
+      "description": "GitHub Personal Access Token",
+      "password": true
+    },
+    {
+      "type": "promptString",
+      "id": "postgres_url",
+      "description": "PostgreSQL Connection URL",
+      "password": true
+    },
+    {
+      "type": "promptString",
+      "id": "slack_token",
+      "description": "Slack Bot Token",
+      "password": true
+    },
+    {
+      "type": "promptString",
+      "id": "brave_api_key",
+      "description": "Brave Search API Key",
+      "password": true
+    }
+  ],
+  "servers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--read-only",
+        "--security-opt", "no-new-privileges",
+        "--memory", "256m",
+        "-e", "GITHUB_TOKEN",
+        "mcp/github"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${input:github_token}"
+      }
+    },
+    "time": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--read-only",
+        "--security-opt", "no-new-privileges",
+        "--memory", "128m",
+        "mcp/time"
+      ]
+    },
+    "puppeteer": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--security-opt", "no-new-privileges",
+        "--memory", "512m",
+        "-e", "DOCKER_CONTAINER=true",
+        "mcp/puppeteer"
+      ]
+    },
+    "postgres": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--read-only",
+        "--security-opt", "no-new-privileges",
+        "--memory", "256m",
+        "-e", "POSTGRES_URL",
+        "mcp/postgres"
+      ],
+      "env": {
+        "POSTGRES_URL": "${input:postgres_url}"
+      }
+    },
+    "slack": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--read-only",
+        "--security-opt", "no-new-privileges",
+        "--memory", "256m",
+        "-e", "SLACK_BOT_TOKEN",
+        "mcp/slack"
+      ],
+      "env": {
+        "SLACK_BOT_TOKEN": "${input:slack_token}"
+      }
+    },
+    "brave-search": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--read-only",
+        "--security-opt", "no-new-privileges",
+        "--memory", "256m",
+        "-e", "BRAVE_API_KEY",
+        "mcp/brave-search"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "${input:brave_api_key}"
+      }
+    },
+    "filesystem": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--read-only",
+        "--security-opt", "no-new-privileges",
+        "--memory", "128m",
+        "-v", "${workspaceFolder}:/workspace:ro",
+        "mcp/filesystem"
+      ]
+    }
+  }
+}

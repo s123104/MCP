@@ -1,0 +1,94 @@
+{
+  "mcp": {
+    "servers": {
+      "github": {
+        "command": "docker",
+        "args": [
+          "run", "-i", "--rm",
+          "--read-only",
+          "--security-opt", "no-new-privileges",
+          "--memory", "256m",
+          "-e", "GITHUB_TOKEN",
+          "mcp/github"
+        ],
+        "env": {
+          "GITHUB_TOKEN": "your_github_personal_access_token_here"
+        }
+      },
+      "time": {
+        "command": "docker",
+        "args": [
+          "run", "-i", "--rm",
+          "--read-only",
+          "--security-opt", "no-new-privileges",
+          "--memory", "128m",
+          "mcp/time"
+        ]
+      },
+      "puppeteer": {
+        "command": "docker",
+        "args": [
+          "run", "-i", "--rm",
+          "--security-opt", "no-new-privileges",
+          "--memory", "512m",
+          "--shm-size", "2gb",
+          "-e", "DOCKER_CONTAINER=true",
+          "mcp/puppeteer"
+        ]
+      },
+      "postgres": {
+        "command": "docker",
+        "args": [
+          "run", "-i", "--rm",
+          "--read-only",
+          "--security-opt", "no-new-privileges",
+          "--memory", "256m",
+          "-e", "POSTGRES_URL",
+          "mcp/postgres"
+        ],
+        "env": {
+          "POSTGRES_URL": "postgresql://username:password@host:5432/database"
+        }
+      },
+      "slack": {
+        "command": "docker",
+        "args": [
+          "run", "-i", "--rm",
+          "--read-only",
+          "--security-opt", "no-new-privileges",
+          "--memory", "256m",
+          "-e", "SLACK_BOT_TOKEN",
+          "mcp/slack"
+        ],
+        "env": {
+          "SLACK_BOT_TOKEN": "xoxb-your-slack-bot-token-here"
+        }
+      },
+      "filesystem": {
+        "command": "docker",
+        "args": [
+          "run", "-i", "--rm",
+          "--read-only",
+          "--security-opt", "no-new-privileges",
+          "--memory", "128m",
+          "-v", "$(pwd):/workspace:ro",
+          "mcp/filesystem"
+        ]
+      },
+      "brave-search": {
+        "command": "docker",
+        "args": [
+          "run", "-i", "--rm",
+          "--read-only", 
+          "--security-opt", "no-new-privileges",
+          "--memory", "256m",
+          "-e", "BRAVE_API_KEY",
+          "mcp/brave-search"
+        ],
+        "env": {
+          "BRAVE_API_KEY": "your_brave_search_api_key_here"
+        }
+      }
+    }
+  }
+}

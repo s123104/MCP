@@ -1,0 +1,239 @@
+# 測試環境配置 - 包含測試工具和模擬服務
+version: '3.8'
+
+services:
+  # 測試用 MCP 服務器
+  github-mcp-test:
+    image: mcp/github:latest
+    container_name: github-mcp-test
+    environment:
+      - GITHUB_TOKEN=${GITHUB_TOKEN_TEST}
+      - NODE_ENV=test
+    stdin_open: true
+    tty: true
+    restart: on-failure
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.3
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.server=github"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  time-mcp-test:
+    image: mcp/time:latest
+    container_name: time-mcp-test
+    environment:
+      - NODE_ENV=test
+    stdin_open: true
+    tty: true
+    restart: on-failure
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
+    cpus: 0.1
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.server=time"
+
+  # 測試用 Mock 服務器
+  mock-api-server:
+    image: mockserver/mockserver:latest
+    container_name: mock-api-test
+    ports:
+      - "1080:1080"
+    environment:
+      - MOCKSERVER_LOG_LEVEL=INFO
+    volumes:
+      - ./test/mock-data:/opt/mockserver/expectations
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=mock"
+
+  # 測試資料庫
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: postgres-test
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=testpass
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./test/sql:/docker-entrypoint-initdb.d
+      - postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=database"
+
+  # Redis 測試實例
+  redis-test:
+    image: redis:7-alpine
+    container_name: redis-test
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly no --save ""
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=cache"
+
+  # 測試執行器
+  test-runner:
+    build:
+      context: .
+      dockerfile: test/Dockerfile.test
+    container_name: mcp-test-runner
+    volumes:
+      - ./test:/app/test
+      - ./src:/app/src
+      - test_results:/app/results
+    environment:
+      - NODE_ENV=test
+      - GITHUB_API_URL=http://mock-api-server:1080
+      - POSTGRES_URL=postgresql://testuser:testpass@postgres-test:5432/testdb
+      - REDIS_URL=redis://redis-test:6379
+    depends_on:
+      - mock-api-server
+      - postgres-test
+      - redis-test
+      - github-mcp-test
+      - time-mcp-test
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=runner"
+    profiles:
+      - test
+
+  # 效能測試工具
+  k6-load-test:
+    image: grafana/k6:latest
+    container_name: k6-load-test
+    volumes:
+      - ./test/k6:/scripts
+      - test_results:/results
+    environment:
+      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus-test:9090/api/v1/write
+    command: ["run", "--out", "prometheus", "/scripts/load-test.js"]
+    depends_on:
+      - github-mcp-test
+      - time-mcp-test
+      - prometheus-test
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=load-test"
+    profiles:
+      - performance
+
+  # 測試監控
+  prometheus-test:
+    image: prom/prometheus:latest
+    container_name: prometheus-test
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./test/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_test_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=1d'
+      - '--web.enable-lifecycle'
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=monitoring"
+
+  # Jaeger 追蹤系統
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger-test
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=tracing"
+
+  # 測試報告生成器
+  allure-report:
+    image: frankescobar/allure-docker-service
+    container_name: allure-report-test
+    ports:
+      - "5050:5050"
+    volumes:
+      - test_results:/app/allure-results
+      - allure_reports:/app/allure-reports
+    environment:
+      - CHECK_RESULTS_EVERY_SECONDS=3
+      - KEEP_HISTORY=20
+    networks:
+      - mcp-test-network
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=reporting"
+
+networks:
+  mcp-test-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.23.0.0/16
+    labels:
+      - "mcp.env=test"
+
+volumes:
+  postgres_test_data:
+    driver: local
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=database"
+  
+  prometheus_test_data:
+    driver: local
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=monitoring"
+  
+  test_results:
+    driver: local
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=results"
+  
+  allure_reports:
+    driver: local
+    labels:
+      - "mcp.env=test"
+      - "mcp.type=reports"
