@@ -1,1 +1,33 @@
-PyYAML
+# 核心 GUI 依賴
+tkinter  # Python 內建，通常不需要安裝
+PyYAML>=6.0
+
+# 爬蟲依賴
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# 數據處理
+dataclasses; python_version<"3.7"
+typing-extensions>=4.0.0
+
+# 開發和測試
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# 文檔生成
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.2.0
+
+# 代碼品質
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# 安全性掃描
+bandit>=1.7.0
+safety>=2.3.0
+
+# Docker 和 DevOps
+docker>=6.0.0
+docker-compose>=1.29.0

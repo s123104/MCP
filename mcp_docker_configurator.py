@@ -23,9 +23,17 @@ def load_mcp_servers_from_catalog():
     global MCP_SERVERS_DATA
     try:
         with open('mcp_catalog.json', 'r', encoding='utf-8') as f:
-            MCP_SERVERS_DATA = json.load(f)
-        # 將列表轉換為字典，以 id 為鍵，方便查找
-        return {server['id']: server for server in MCP_SERVERS_DATA}
+            catalog_data = json.load(f)
+        
+        # 檢查新格式 (version 2.0.0+)
+        if isinstance(catalog_data, dict) and 'servers' in catalog_data:
+            servers = catalog_data['servers']
+        else:
+            # 舊格式兼容
+            servers = {server['id']: server for server in catalog_data if isinstance(catalog_data, list)}
+        
+        MCP_SERVERS_DATA = servers
+        return servers
     except FileNotFoundError:
         messagebox.showerror("錯誤", "找不到 mcp_catalog.json 檔案！請確保該檔案存在於專案根目錄。")
         return {}
@@ -36,407 +44,586 @@ def load_mcp_servers_from_catalog():
 class MCPDockerConfigurator:
     def __init__(self, root):
         self.root = root
-        self.root.title("MCP Docker 配置器 - 自動生成多平台配置")
-        self.root.geometry("1400x900")
-        self.root.configure(bg='#f0f0f0')
+        self.root.title("🚀 MCP Docker 配置器 Pro - 快速安全部署 Model Context Protocol")
+        self.root.geometry("1600x1000")
+        self.root.configure(bg='#f0f2f5')
         
-        # 設定現代化樣式
         self.setup_styles()
         
-        # 從 catalog 載入 MCP 伺服器列表
         self.mcp_servers = load_mcp_servers_from_catalog()
-        if not self.mcp_servers: # 如果載入失敗，則不繼續初始化GUI
+        if not self.mcp_servers:
             self.root.quit()
             return
         
+        # 核心狀態變數
         self.selected_servers = {}
         self.env_entries = {}
-        self.transport_vars = {}
+        self.volume_mounts = []
+        self.transport_vars = {}  # 新增：傳輸協定變數
         
+        # 配置變數
+        self.docker_registry_var = tk.StringVar(value="mcp")
+        self.network_mode_var = tk.StringVar(value="bridge")
+        self.memory_limit_var = tk.StringVar(value="512m")
+        self.cpu_limit_var = tk.StringVar(value="1.0")
+        
+        # 修復變數引用問題
+        self.memory_var = self.memory_limit_var  # 別名，以兼容現有代碼
+        self.cpu_var = self.cpu_limit_var        # 別名，以兼容現有代碼
+        self.network_var = self.network_mode_var # 別名，以兼容現有代碼
+        
+        # 快速設定選項
+        self.quick_setup_var = tk.StringVar(value="development")
+        self.filesystem_paths_var = tk.StringVar(value="/workspace:/data:/home/user/projects")
+        self.auto_best_practices_var = tk.BooleanVar(value=True)
+        
+        # 狀態追蹤
+        self.current_step = 1
+        self.total_steps = 4
+        
+        # 在 create_widgets 之前顯示快速指引
         self.create_widgets()
+        self.root.after(500, self.show_quick_start_guide)  # 延遲顯示指引
         
-    def setup_styles(self):
-        """設定現代化 UI 樣式"""
-        style = ttk.Style()
-        style.theme_use('clam')
+    def show_quick_start_guide(self):
+        """顯示快速開始指引"""
+        guide_window = tk.Toplevel(self.root)
+        guide_window.title("🚀 快速開始指引")
+        guide_window.geometry("600x500")
+        guide_window.configure(bg='#f0f2f5')
+        guide_window.transient(self.root)
+        guide_window.grab_set()
         
-        # 自定義樣式
-        style.configure('Title.TLabel', font=('Helvetica', 18, 'bold'), foreground='#2c3e50')
-        style.configure('Header.TLabel', font=('Helvetica', 12, 'bold'), foreground='#34495e')
-        style.configure('Info.TLabel', font=('Helvetica', 10), foreground='#7f8c8d')
-        style.configure('Success.TLabel', font=('Helvetica', 10), foreground='#27ae60')
-        style.configure('Warning.TLabel', font=('Helvetica', 10), foreground='#e67e22')
-        style.configure('Error.TLabel', font=('Helvetica', 10), foreground='#e74c3c')
-        
-    def create_widgets(self):
         # 主框架
-        main_frame = ttk.Frame(self.root, padding="15")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # 標題區域
-        title_frame = ttk.Frame(main_frame)
-        title_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 20))
-        
-        title_label = ttk.Label(title_frame, text="🐳 MCP Docker 配置器", style='Title.TLabel')
-        title_label.grid(row=0, column=0, sticky=tk.W)
-        
-        subtitle_label = ttk.Label(title_frame, text="自動生成 Claude Desktop、VS Code、Cursor 配置檔案", style='Info.TLabel')
-        subtitle_label.grid(row=1, column=0, sticky=tk.W, pady=(5, 0))
-        
-        # 建立 Notebook
-        self.notebook = ttk.Notebook(main_frame, style='TNotebook')
-        self.notebook.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 15))
-        
-        # 各個分頁
-        self.create_server_selection_tab()
-        self.create_config_tab() 
-        self.create_advanced_tab()
-        self.create_help_tab()
-        
-        # 底部按鈕區域
-        self.create_bottom_buttons(main_frame)
-        
-        # 狀態列
-        self.create_status_bar(main_frame)
-        
-        # 配置網格權重
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(1, weight=1)
-        
-    def create_server_selection_tab(self):
-        """服務器選擇分頁"""
-        frame = ttk.Frame(self.notebook, padding="15")
-        self.notebook.add(frame, text="📦 服務器選擇")
-        
-        # 篩選區域
-        filter_frame = ttk.LabelFrame(frame, text="🔍 篩選和搜尋", padding="10")
-        filter_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 15))
-        
-        # 分類篩選
-        ttk.Label(filter_frame, text="分類:", style='Header.TLabel').grid(row=0, column=0, padx=(0, 10), sticky=tk.W)
-        categories = ["全部"] + sorted(list(set(server["category"] for server in self.mcp_servers.values())))
-        self.category_var = tk.StringVar(value="全部")
-        category_combo = ttk.Combobox(filter_frame, textvariable=self.category_var, 
-                                     values=categories, state="readonly", width=15)
-        category_combo.grid(row=0, column=1, padx=(0, 20))
-        category_combo.bind('<<ComboboxSelected>>', self.filter_servers)
-        
-        # 搜尋框
-        ttk.Label(filter_frame, text="搜尋:", style='Header.TLabel').grid(row=0, column=2, padx=(0, 10), sticky=tk.W)
-        self.search_var = tk.StringVar()
-        search_entry = ttk.Entry(filter_frame, textvariable=self.search_var, width=25)
-        search_entry.grid(row=0, column=3, padx=(0, 20))
-        search_entry.bind('<KeyRelease>', self.filter_servers)
-        
-        # 全選/取消全選按鈕
-        ttk.Button(filter_frame, text="全選", command=self.select_all).grid(row=0, column=4, padx=(0, 5))
-        ttk.Button(filter_frame, text="清除", command=self.clear_selection).grid(row=0, column=5)
-        
-        # 服務器列表
-        list_frame = ttk.LabelFrame(frame, text="📋 可用的 MCP 服務器", padding="10")
-        list_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 15))
-        
-        # Treeview 設定
-        columns = ('選擇', '名稱', '分類', '描述', '映像', '官方')
-        self.server_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=12)
-        
-        # 欄位設定
-        self.server_tree.heading('選擇', text='✓')
-        self.server_tree.heading('名稱', text='名稱')
-        self.server_tree.heading('分類', text='分類')
-        self.server_tree.heading('描述', text='描述')
-        self.server_tree.heading('映像', text='Docker 映像')
-        self.server_tree.heading('官方', text='官方')
-        
-        self.server_tree.column('選擇', width=40, anchor=tk.CENTER)
-        self.server_tree.column('名稱', width=100)
-        self.server_tree.column('分類', width=100)
-        self.server_tree.column('描述', width=450)
-        self.server_tree.column('映像', width=200)
-        self.server_tree.column('官方', width=60, anchor=tk.CENTER)
-        
-        # 捲軸
-        v_scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.server_tree.yview)
-        self.server_tree.configure(yscrollcommand=v_scrollbar.set)
-        h_scrollbar = ttk.Scrollbar(list_frame, orient=tk.HORIZONTAL, command=self.server_tree.xview)
-        self.server_tree.configure(xscrollcommand=h_scrollbar.set)
-        
-        self.server_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        v_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        h_scrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
-        
-        # 事件綁定
-        self.server_tree.bind('<Double-1>', self.toggle_server_selection)
-        self.server_tree.bind('<Button-1>', self.on_server_click)
-        self.server_tree.bind('<Button-3>', self.show_server_context_menu)  # 右鍵選單
-        
-        # 環境變數配置區域
-        env_frame = ttk.LabelFrame(frame, text="⚙️ 環境變數配置", padding="10")
-        env_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # 環境變數捲動區域
-        canvas = tk.Canvas(env_frame, height=200)
-        env_scrollbar = ttk.Scrollbar(env_frame, orient="vertical", command=canvas.yview)
-        self.env_scroll_frame = ttk.Frame(canvas)
-        
-        self.env_scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=self.env_scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=env_scrollbar.set)
-        
-        canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        env_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        
-        # 填充初始資料
-        self.populate_server_list()
-        
-        # 配置網格權重
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(1, weight=1)
-        list_frame.columnconfigure(0, weight=1)
-        list_frame.rowconfigure(0, weight=1)
-        env_frame.columnconfigure(0, weight=1)
-        
-    def create_config_tab(self):
-        """配置生成分頁"""
-        frame = ttk.Frame(self.notebook, padding="15")
-        self.notebook.add(frame, text="⚙️ 配置生成")
-        
-        # 平台選擇
-        platform_frame = ttk.LabelFrame(frame, text="🎯 目標平台", padding="10")
-        platform_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 15))
-        
-        self.platform_vars = {}
-        platforms = [
-            ("claude", "Claude Desktop", "🤖"),
-            ("vscode", "VS Code", "📝"), 
-            ("cursor", "Cursor", "📋"),
-            ("compose", "Docker Compose", "🐳")
-        ]
-        
-        for i, (key, name, icon) in enumerate(platforms):
-            var = tk.BooleanVar(value=True if key == "claude" else False)
-            self.platform_vars[key] = var
-            ttk.Checkbutton(platform_frame, text=f"{icon} {name}", 
-                           variable=var, command=self.update_config_preview).grid(
-                           row=0, column=i, padx=15, sticky=tk.W)
-        
-        # 傳輸協定選擇
-        transport_frame = ttk.LabelFrame(frame, text="🔌 傳輸協定", padding="10")
-        transport_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 15))
-        
-        self.default_transport = tk.StringVar(value="stdio")
-        ttk.Radiobutton(transport_frame, text="📥 STDIO (推薦)", 
-                       variable=self.default_transport, value="stdio").grid(row=0, column=0, padx=15)
-        ttk.Radiobutton(transport_frame, text="🌐 SSE (遠端)", 
-                       variable=self.default_transport, value="sse").grid(row=0, column=1, padx=15)
-        
-        # 安全選項
-        security_frame = ttk.LabelFrame(frame, text="🔒 安全選項", padding="10")
-        security_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 15))
-        
-        self.security_vars = {}
-        security_options = [
-            ("read_only", "唯讀根檔案系統"),
-            ("no_privileges", "禁止權限提升"),
-            ("memory_limit", "限制記憶體使用"),
-            ("network_isolation", "網路隔離")
-        ]
-        
-        for i, (key, text) in enumerate(security_options):
-            var = tk.BooleanVar(value=True)
-            self.security_vars[key] = var
-            ttk.Checkbutton(security_frame, text=text, variable=var).grid(
-                row=i//2, column=i%2, padx=15, pady=5, sticky=tk.W)
-        
-        # 生成按鈕
-        button_frame = ttk.Frame(frame)
-        button_frame.grid(row=3, column=0, columnspan=2, pady=15)
-        
-        ttk.Button(button_frame, text="🚀 生成所有配置", 
-                  command=self.generate_all_configs).pack(side=tk.LEFT, padx=10)
-        ttk.Button(button_frame, text="💾 儲存配置", 
-                  command=self.save_all_configs).pack(side=tk.LEFT, padx=10)
-        ttk.Button(button_frame, text="📋 複製到剪貼簿", 
-                  command=self.copy_configs).pack(side=tk.LEFT, padx=10)
-        
-        # 配置預覽區域
-        preview_frame = ttk.LabelFrame(frame, text="👀 配置預覽", padding="10")
-        preview_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # 分頁預覽
-        self.config_notebook = ttk.Notebook(preview_frame)
-        self.config_notebook.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        self.config_texts = {}
-        for key, name, _ in platforms:
-            text_frame = ttk.Frame(self.config_notebook)
-            self.config_notebook.add(text_frame, text=name)
-            
-            text_widget = scrolledtext.ScrolledText(text_frame, height=15, width=80, 
-                                                   font=('Consolas', 10))
-            text_widget.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-            self.config_texts[key] = text_widget
-        
-        # 配置網格權重
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(4, weight=1)
-        preview_frame.columnconfigure(0, weight=1)
-        preview_frame.rowconfigure(0, weight=1)
-        
-    def create_advanced_tab(self):
-        """進階設定分頁"""
-        frame = ttk.Frame(self.notebook, padding="15")
-        self.notebook.add(frame, text="🔧 進階設定")
-        
-        # Docker 設定
-        docker_frame = ttk.LabelFrame(frame, text="🐳 Docker 設定", padding="10")
-        docker_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 15))
-        
-        ttk.Label(docker_frame, text="基礎映像:").grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
-        self.base_image_var = tk.StringVar(value="docker.io")
-        base_image_entry = ttk.Entry(docker_frame, textvariable=self.base_image_var, width=30)
-        base_image_entry.grid(row=0, column=1, sticky=tk.W, padx=(0, 20))
-        
-        ttk.Label(docker_frame, text="網路模式:").grid(row=0, column=2, sticky=tk.W, padx=(0, 10))
-        self.network_var = tk.StringVar(value="bridge")
-        network_combo = ttk.Combobox(docker_frame, textvariable=self.network_var, 
-                                   values=["bridge", "host", "none", "custom"], width=15)
-        network_combo.grid(row=0, column=3, sticky=tk.W)
-        
-        # 資源限制
-        resource_frame = ttk.LabelFrame(frame, text="📊 資源限制", padding="10")
-        resource_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 15))
-        
-        ttk.Label(resource_frame, text="記憶體限制:").grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
-        self.memory_var = tk.StringVar(value="512m")
-        memory_entry = ttk.Entry(resource_frame, textvariable=self.memory_var, width=10)
-        memory_entry.grid(row=0, column=1, sticky=tk.W, padx=(0, 20))
-        
-        ttk.Label(resource_frame, text="CPU 限制:").grid(row=0, column=2, sticky=tk.W, padx=(0, 10))
-        self.cpu_var = tk.StringVar(value="1.0")
-        cpu_entry = ttk.Entry(resource_frame, textvariable=self.cpu_var, width=10)
-        cpu_entry.grid(row=0, column=3, sticky=tk.W)
-        
-        # 卷掛載
-        volume_frame = ttk.LabelFrame(frame, text="💾 卷掛載", padding="10")
-        volume_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # 卷掛載列表
-        self.volume_tree = ttk.Treeview(volume_frame, columns=('host', 'container', 'mode'), 
-                                       show='headings', height=6)
-        self.volume_tree.heading('host', text='主機路徑')
-        self.volume_tree.heading('container', text='容器路徑')
-        self.volume_tree.heading('mode', text='模式')
-        
-        self.volume_tree.column('host', width=200)
-        self.volume_tree.column('container', width=200)
-        self.volume_tree.column('mode', width=100)
-        
-        self.volume_tree.grid(row=0, column=0, columnspan=4, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
-        
-        # 卷掛載控制按鈕
-        ttk.Button(volume_frame, text="➕ 添加卷", command=self.add_volume).grid(row=1, column=0, padx=5)
-        ttk.Button(volume_frame, text="➖ 移除卷", command=self.remove_volume).grid(row=1, column=1, padx=5)
-        ttk.Button(volume_frame, text="📁 瀏覽", command=self.browse_volume).grid(row=1, column=2, padx=5)
-        
-        # 配置網格權重
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(2, weight=1)
-        volume_frame.columnconfigure(0, weight=1)
-        volume_frame.rowconfigure(0, weight=1)
-        
-    def create_help_tab(self):
-        """說明和文檔分頁"""
-        frame = ttk.Frame(self.notebook, padding="15")
-        self.notebook.add(frame, text="📚 使用說明")
-        
-        # 快速入門
-        quick_frame = ttk.LabelFrame(frame, text="🚀 快速入門", padding="10")
-        quick_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 15))
-        
-        quick_steps = [
-            "1. 在「服務器選擇」分頁選擇需要的 MCP 服務器",
-            "2. 配置必要的環境變數 (API 金鑰等)",
-            "3. 在「配置生成」分頁選擇目標平台",
-            "4. 點擊「生成所有配置」按鈕",
-            "5. 將配置複製到對應的配置檔案位置"
-        ]
-        
-        for i, step in enumerate(quick_steps):
-            ttk.Label(quick_frame, text=step, style='Info.TLabel').grid(
-                row=i, column=0, sticky=tk.W, pady=2)
-        
-        # 配置位置
-        location_frame = ttk.LabelFrame(frame, text="📍 配置檔案位置", padding="10")
-        location_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 15))
-        
-        locations = [
-            ("Claude Desktop (macOS)", "~/Library/Application Support/Claude/claude_desktop_config.json"),
-            ("Claude Desktop (Windows)", "%APPDATA%/Claude/claude_desktop_config.json"),
-            ("VS Code", ".vscode/mcp.json"),
-            ("Cursor", "Cursor 設定 > MCP 區段"),
-            ("Docker Compose", "docker-compose.yml")
-        ]
-        
-        for i, (platform, path) in enumerate(locations):
-            ttk.Label(location_frame, text=f"{platform}:", style='Header.TLabel').grid(
-                row=i, column=0, sticky=tk.W, padx=(0, 10))
-            ttk.Label(location_frame, text=path, style='Info.TLabel').grid(
-                row=i, column=1, sticky=tk.W)
-        
-        # 常見問題
-        faq_frame = ttk.LabelFrame(frame, text="❓ 常見問題", padding="10")
-        faq_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        faq_text = scrolledtext.ScrolledText(faq_frame, height=12, wrap=tk.WORD)
-        faq_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        faq_content = """
-Q: 為什麼推薦使用 Docker MCP 而不是傳統 MCP？
-A: Docker MCP 提供更好的安全隔離、更簡單的部署和更一致的運行環境。
-
-Q: STDIO 和 SSE 傳輸協定有什麼差別？
-A: STDIO 適用於本地使用，更安全且無需網路端口；SSE 適用於遠端連接，基於 HTTP 協定。
-
-Q: 如何獲得 API 金鑰？
-A: 請訪問對應服務的官方網站申請 API 金鑰，如 GitHub、Slack、OpenAI 等。
-
-Q: 容器無法啟動怎麼辦？
-A: 檢查 Docker 是否運行、環境變數是否正確設定、端口是否被占用。
-
-Q: 如何更新 MCP 服務器？
-A: 使用 docker pull 命令更新映像，然後重新啟動容器。
-
-Q: 安全性如何保證？
-A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源限制等多層安全保護。
+        main_frame = ttk.Frame(guide_window, padding=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 標題
+        title_label = ttk.Label(main_frame, text="🚀 MCP Docker 配置器快速指引", 
+                               style='Title.TLabel')
+        title_label.pack(pady=(0, 20))
+        
+        # 步驟說明
+        steps_text = """
+❶ 選擇 MCP 服務器
+   • 從左側列表選擇您需要的 MCP 服務器
+   • 推薦：filesystem（檔案管理）、github（代碼管理）、postgres（數據庫）
+   
+❷ 配置環境變數
+   • 系統會自動填入最佳實踐配置
+   • filesystem 預設允許讀寫，支援多路徑配置
+   • 可根據需要調整環境變數值
+   
+❸ 生成配置檔案
+   • 選擇目標平台：Claude Desktop、VS Code、Cursor、Docker Compose
+   • 系統會生成最佳化的安全配置
+   • 自動應用 Docker 安全最佳實踐
+   
+❹ 部署和使用
+   • 直接複製配置或儲存到檔案
+   • 使用內建 Docker 狀態檢查工具
+   • 一鍵安裝選定的服務器
         """
         
-        faq_text.insert(tk.INSERT, faq_content.strip())
-        faq_text.config(state=tk.DISABLED)
+        steps_label = ttk.Label(main_frame, text=steps_text, justify=tk.LEFT, 
+                               font=('Arial', 11))
+        steps_label.pack(pady=(0, 20), anchor=tk.W)
         
-        # 相關連結
-        links_frame = ttk.LabelFrame(frame, text="🔗 相關資源", padding="10")
-        links_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(15, 0))
+        # 快速設定選項
+        quick_frame = ttk.LabelFrame(main_frame, text="快速設定", padding=15)
+        quick_frame.pack(fill=tk.X, pady=(0, 20))
         
-        links = [
-            ("Docker MCP 官方文檔", "https://docs.docker.com/ai/mcp-catalog-and-toolkit/"),
-            ("Docker Hub MCP Catalog", "https://hub.docker.com/catalogs/mcp"),
-            ("MCP 協定規範", "https://modelcontextprotocol.io"),
-            ("GitHub 討論區", "https://github.com/docker/mcp-servers")
-        ]
+        ttk.Label(quick_frame, text="預設環境：").pack(anchor=tk.W)
+        env_frame = ttk.Frame(quick_frame)
+        env_frame.pack(fill=tk.X, pady=5)
         
-        for i, (text, url) in enumerate(links):
-            link_button = ttk.Button(links_frame, text=f"🌐 {text}", 
-                                   command=lambda u=url: webbrowser.open(u))
-            link_button.grid(row=i//2, column=i%2, padx=10, pady=5, sticky=tk.W)
+        ttk.Radiobutton(env_frame, text="開發環境（推薦）", 
+                       variable=self.quick_setup_var, value="development").pack(anchor=tk.W)
+        ttk.Radiobutton(env_frame, text="生產環境（高安全性）", 
+                       variable=self.quick_setup_var, value="production").pack(anchor=tk.W)
+        ttk.Radiobutton(env_frame, text="測試環境（最小權限）", 
+                       variable=self.quick_setup_var, value="testing").pack(anchor=tk.W)
         
-        # 配置網格權重
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(2, weight=1)
-        faq_frame.columnconfigure(0, weight=1)
-        faq_frame.rowconfigure(0, weight=1)
+        ttk.Checkbutton(quick_frame, text="自動應用最佳實踐配置", 
+                       variable=self.auto_best_practices_var).pack(anchor=tk.W, pady=5)
+        
+        # 底部按鈕
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
+        
+        ttk.Button(button_frame, text="開始配置", 
+                  command=lambda: [self.apply_quick_setup(), guide_window.destroy()],
+                  style='Accent.TButton').pack(side=tk.RIGHT, padx=(5, 0))
+        ttk.Button(button_frame, text="跳過指引", 
+                  command=guide_window.destroy).pack(side=tk.RIGHT)
+    
+    def apply_quick_setup(self):
+        """應用快速設定"""
+        setup_type = self.quick_setup_var.get()
+        
+        if setup_type == "development":
+            # 開發環境：推薦常用的服務器
+            recommended_servers = ["filesystem", "github", "fetch", "git"]
+        elif setup_type == "production":
+            # 生產環境：高安全性服務器
+            recommended_servers = ["postgres", "memory", "sentry"]
+        else:
+            # 測試環境：輕量級服務器
+            recommended_servers = ["sqlite", "time", "everything"]
+        
+        # 自動選擇推薦的服務器
+        for server_id in recommended_servers:
+            if server_id in self.mcp_servers:
+                self.selected_servers[server_id] = True
+        
+        # 更新界面
+        self.populate_server_list()
+        self.update_env_config()
+        
+        # 顯示提示
+        messagebox.showinfo("快速設定完成", 
+                           f"已自動選擇 {setup_type} 環境推薦的 MCP 服務器。\n"
+                           f"請繼續配置環境變數，然後生成配置檔案。")
+        self.show_quick_start_guide()
+        
+    def setup_styles(self):
+        style = ttk.Style(self.root)
+        style.theme_use('clam') # clam 主題通常比預設的更現代
+
+        # --- 顏色定義 ---
+        BG_COLOR = '#f0f2f5' # 更現代的淺灰背景
+        FG_COLOR = '#333333' # 深灰色文字
+        ACCENT_COLOR = '#0078d4' # 主題藍色 (類 VS Code)
+        BUTTON_BG = '#0078d4'
+        BUTTON_FG = '#ffffff'
+        BUTTON_ACTIVE_BG = '#005a9e'
+        TREE_HEADER_BG = '#e1e1e1'
+        TREE_SELECTED_BG = '#cce4f7' # 淡藍色選中背景
+        INPUT_BG = '#ffffff'
+        INPUT_FG = '#333333'
+        LABEL_FG = '#111111'
+        STATUS_BAR_BG = '#0078d4'
+        STATUS_BAR_FG = '#ffffff'
+
+        self.root.configure(bg=BG_COLOR)
+
+        # --- 通用樣式配置 ---
+        style.configure('.', background=BG_COLOR, foreground=FG_COLOR, font=('Arial', 10)) # 使用 Arial 字體
+        style.configure('TFrame', background=BG_COLOR)
+        style.configure('TLabel', background=BG_COLOR, foreground=LABEL_FG, font=('Arial', 10))
+        style.configure('Header.TLabel', font=('Arial', 11, 'bold'), foreground=ACCENT_COLOR)
+        style.configure('Title.TLabel', font=('Arial', 16, 'bold'), foreground=FG_COLOR)
+        style.configure('Category.TLabel', font=('Arial', 12, 'bold'), foreground=ACCENT_COLOR, padding=(0,10,0,5))
+
+        # --- Notebook 樣式 ---
+        style.configure('TNotebook', background=BG_COLOR, tabmargins=[2, 5, 2, 0])
+        style.configure('TNotebook.Tab', padding=[10, 5], font=('Arial', 10, 'bold'), foreground=FG_COLOR)
+        style.map('TNotebook.Tab', 
+                  background=[('selected', BG_COLOR)], 
+                  foreground=[('selected', ACCENT_COLOR)],
+                  expand=[('selected', [1, 1, 1, 0])]) # 選中 tab 視覺效果
+
+        # --- Button 樣式 ---
+        style.configure('TButton', font=('Arial', 10, 'bold'), 
+                        background=BUTTON_BG, foreground=BUTTON_FG,
+                        padding=(10, 5),
+                        borderwidth=0, relief='flat')
+        style.map('TButton', 
+                  background=[('active', BUTTON_ACTIVE_BG), ('pressed', BUTTON_ACTIVE_BG)],
+                  relief=[('pressed', 'flat'), ('active', 'flat')])
+        
+        style.configure('Accent.TButton', background=ACCENT_COLOR, foreground='#ffffff')
+        style.map('Accent.TButton', background=[('active', '#005fba')])
+
+        # --- Treeview 樣式 ---
+        style.configure('Treeview', 
+                        background=INPUT_BG, foreground=INPUT_FG, 
+                        fieldbackground=INPUT_BG, rowheight=28, font=('Arial', 10))
+        style.configure('Treeview.Heading', font=('Arial', 10, 'bold'), 
+                          background=TREE_HEADER_BG, foreground=FG_COLOR, relief='flat', padding=(5,5))
+        style.map('Treeview.Heading', background=[('active', '#cccccc')])
+        style.map('Treeview', background=[('selected', TREE_SELECTED_BG)], foreground=[('selected', FG_COLOR)])
+
+        # --- Entry 和 ScrolledText (透過 Tkinter 設定) ---
+        self.root.option_add("*TEntry*Font", ('Arial', 10))
+        self.root.option_add("*TEntry*Background", INPUT_BG)
+        self.root.option_add("*TEntry*Foreground", INPUT_FG)
+        self.root.option_add("*TEntry*selectBackground", ACCENT_COLOR)
+        self.root.option_add("*TEntry*selectForeground", 'white')
+        self.root.option_add("*Text*Font", ('Arial', 10))
+        self.root.option_add("*Text*Background", INPUT_BG)
+        self.root.option_add("*Text*Foreground", INPUT_FG)
+        self.root.option_add("*Text*selectBackground", ACCENT_COLOR)
+        self.root.option_add("*Text*selectForeground", 'white')
+
+        # --- LabelFrame 樣式 ---
+        style.configure('TLabelframe', background=BG_COLOR, borderwidth=1, relief="groove", padding=10)
+        style.configure('TLabelframe.Label', background=BG_COLOR, foreground=ACCENT_COLOR, font=('Arial', 11, 'bold'))
+
+        # --- Checkbutton and Radiobutton ---
+        style.configure('TCheckbutton', background=BG_COLOR, font=('Arial', 10))
+        style.configure('TRadiobutton', background=BG_COLOR, font=('Arial', 10))
+
+        # --- Scrollbar ---
+        style.configure('Vertical.TScrollbar', background=BG_COLOR, troughcolor=BG_COLOR, bordercolor=BG_COLOR, arrowcolor=FG_COLOR)
+        style.map('Vertical.TScrollbar', 
+                  background=[('active', '#cccccc')], 
+                  gripcount=[('pressed', 1)])
+        
+        # --- Status Bar (使用 tk.Label) ---
+        self.status_bar_style = {
+            'bg': STATUS_BAR_BG,
+            'fg': STATUS_BAR_FG,
+            'font': ('Arial', 10, 'bold'),
+            'relief': tk.SUNKEN,
+            'anchor': tk.W,
+            'padx': 10
+        }
+
+    def create_widgets(self):
+        main_pane = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        main_pane.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # 左側面板: 服務器選擇 和 環境變數
+        left_pane_notebook = ttk.Notebook(main_pane, width=600) # 設定初始寬度
+        main_pane.add(left_pane_notebook, weight=2) # 調整權重
+
+        self.server_selection_frame = ttk.Frame(left_pane_notebook, padding=(10,10))
+        left_pane_notebook.add(self.server_selection_frame, text=' ❶ 選擇服務器 ')
+        self.create_server_selection_ui(self.server_selection_frame)
+
+        self.env_config_frame_outer = ttk.Frame(left_pane_notebook, padding=(10,10))
+        left_pane_notebook.add(self.env_config_frame_outer, text=' ❷ 環境變數 ')
+        self.create_env_config_ui(self.env_config_frame_outer)
+
+        # 右側面板: 配置生成, 進階設定, 使用說明
+        right_pane_notebook = ttk.Notebook(main_pane)
+        main_pane.add(right_pane_notebook, weight=3) # 調整權重
+
+        self.config_generation_frame = ttk.Frame(right_pane_notebook, padding=(10,10))
+        right_pane_notebook.add(self.config_generation_frame, text=' ❸ 配置生成 ')
+        self.create_config_generation_ui(self.config_generation_frame)
+
+        self.advanced_settings_frame = ttk.Frame(right_pane_notebook, padding=(10,10))
+        right_pane_notebook.add(self.advanced_settings_frame, text=' ❹ 進階設定 ')
+        self.create_advanced_settings_ui(self.advanced_settings_frame)
+
+        self.help_frame = ttk.Frame(right_pane_notebook, padding=(10,10))
+        right_pane_notebook.add(self.help_frame, text=' ❺ 使用說明 ')
+        self.create_help_ui(self.help_frame)
+        
+        # --- 底部按鈕和狀態列 --- 
+        bottom_frame = ttk.Frame(self.root, padding=(10,5))
+        bottom_frame.pack(fill=tk.X, side=tk.BOTTOM)
+
+        # 左側按鈕
+        left_button_frame = ttk.Frame(bottom_frame)
+        left_button_frame.pack(side=tk.LEFT)
+
+        ttk.Button(left_button_frame, text="🔍 檢查 Docker", command=self.check_docker, style='TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(left_button_frame, text="📥 安裝選定服務器", command=self.install_servers, style='TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(left_button_frame, text="🧹 清除所有", command=self.clear_all_selections, style='TButton').pack(side=tk.LEFT, padx=5)
+
+        # 右側按鈕
+        right_button_frame = ttk.Frame(bottom_frame)
+        right_button_frame.pack(side=tk.RIGHT)
+
+        ttk.Button(right_button_frame, text="💾 匯出設定", command=self.export_settings, style='TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(right_button_frame, text="📁 匯入設定", command=self.import_settings, style='TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(right_button_frame, text="❓ 說明", command=self.show_help_popup, style='TButton').pack(side=tk.LEFT, padx=5)
+
+        # 初始化狀態變數
+        self.status_var = tk.StringVar()
+        self.status_var.set("MCP Docker 配置器 v1.1 - 就緒")
+        
+        self.status_label = tk.Label(self.root, text="就緒", **self.status_bar_style)
+        self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
+
+    def create_server_selection_ui(self, parent_frame):
+        parent_frame.columnconfigure(0, weight=1)
+        parent_frame.rowconfigure(1, weight=1)
+        
+        # 頂部搜尋與篩選
+        filter_bar = ttk.Frame(parent_frame)
+        filter_bar.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0,15))
+        
+        ttk.Label(filter_bar, text="分類:").pack(side=tk.LEFT, padx=(0,5))
+        categories = ["全部"] + sorted(list(set(s.get("category", "未分類") for s in self.mcp_servers.values())))
+        self.category_var = tk.StringVar(value="全部")
+        category_combo = ttk.Combobox(filter_bar, textvariable=self.category_var, values=categories, 
+                                      state="readonly", width=15, font=('Arial', 10))
+        category_combo.pack(side=tk.LEFT, padx=(0,10))
+        category_combo.bind("<<ComboboxSelected>>", self.filter_servers)
+        
+        ttk.Label(filter_bar, text="搜尋:").pack(side=tk.LEFT, padx=(0,5))
+        self.search_var = tk.StringVar()
+        search_entry = ttk.Entry(filter_bar, textvariable=self.search_var, width=20, font=('Arial', 10))
+        search_entry.pack(side=tk.LEFT, padx=(0,10))
+        search_entry.bind("<KeyRelease>", self.filter_servers)
+
+        # Treeview 顯示服務器列表
+        tree_frame = ttk.Frame(parent_frame)
+        tree_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        tree_frame.columnconfigure(0, weight=1)
+        tree_frame.rowconfigure(0, weight=1)
+
+        columns = ('selected', 'name', 'category', 'description', 'image', 'official')
+        self.server_tree = ttk.Treeview(tree_frame, columns=columns, show='headings')
+        
+        self.server_tree.heading('selected', text='✓')
+        self.server_tree.heading('name', text='名稱 (熱門度)')
+        self.server_tree.heading('category', text='分類')
+        self.server_tree.heading('description', text='描述與應用場景')
+        self.server_tree.heading('image', text='Docker 映像')
+        self.server_tree.heading('official', text='官方')
+
+        self.server_tree.column('selected', width=30, anchor=tk.CENTER, stretch=False)
+        self.server_tree.column('name', width=180, anchor=tk.W)
+        self.server_tree.column('category', width=100, anchor=tk.W)
+        self.server_tree.column('description', width=450, anchor=tk.W)
+        self.server_tree.column('image', width=200, anchor=tk.W)
+        self.server_tree.column('official', width=50, anchor=tk.CENTER, stretch=False)
+
+        # 讓描述欄位可以換行顯示 (透過 tag configure)
+
+
+        v_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.server_tree.yview)
+        h_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.server_tree.xview)
+        self.server_tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+        
+        self.server_tree.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        v_scrollbar.grid(row=1, column=1, sticky=(tk.N, tk.S))
+        h_scrollbar.grid(row=2, column=0, sticky=(tk.W, tk.E))
+
+        # 綁定事件
+        self.server_tree.bind("<Double-1>", self.toggle_server_selection)
+        self.server_tree.bind("<Button-3>", self.show_server_context_menu)  # 右鍵選單
+        self.server_tree.bind("<Button-1>", self.on_server_click) # 處理點擊選擇框
+
+        self.populate_server_list()
+    
+    def create_env_config_ui(self, parent_frame):
+        parent_frame.columnconfigure(0, weight=1)
+        parent_frame.rowconfigure(0, weight=1)
+
+        canvas = tk.Canvas(parent_frame, borderwidth=0, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=canvas.yview)
+        self.env_scroll_frame = ttk.Frame(canvas)
+
+        self.env_scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=self.env_scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.update_env_config()
+
+    def create_config_generation_ui(self, parent_frame):
+        parent_frame.columnconfigure(0, weight=1)
+        parent_frame.rowconfigure(1, weight=1) # 讓配置預覽區域可以擴展
+
+        # --- 第一行：平台選擇和傳輸協定 ---
+        top_controls_frame = ttk.Frame(parent_frame)
+        top_controls_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        
+        platform_lf = ttk.LabelFrame(top_controls_frame, text="目標平台", padding=10)
+        platform_lf.pack(side=tk.LEFT, padx=(0,10), fill=tk.Y)
+
+        self.claude_var = tk.BooleanVar(value=True)
+        self.vscode_var = tk.BooleanVar(value=False)
+        self.cursor_var = tk.BooleanVar(value=False)
+        self.compose_var = tk.BooleanVar(value=True)
+        
+        # 將平台變數添加到 platform_vars 字典中
+        self.platform_vars = {
+            "claude": self.claude_var,
+            "vscode": self.vscode_var,
+            "cursor": self.cursor_var,
+            "compose": self.compose_var
+        }
+
+        ttk.Checkbutton(platform_lf, text="Claude Desktop", variable=self.claude_var, command=self.update_config_previews_visibility).pack(anchor=tk.W)
+        ttk.Checkbutton(platform_lf, text="VS Code", variable=self.vscode_var, command=self.update_config_previews_visibility).pack(anchor=tk.W)
+        ttk.Checkbutton(platform_lf, text="Cursor", variable=self.cursor_var, command=self.update_config_previews_visibility).pack(anchor=tk.W)
+        ttk.Checkbutton(platform_lf, text="Docker Compose", variable=self.compose_var, command=self.update_config_previews_visibility).pack(anchor=tk.W)
+
+        transport_lf = ttk.LabelFrame(top_controls_frame, text="傳輸協定 (影響 Claude/VSCode/Cursor)", padding=10)
+        transport_lf.pack(side=tk.LEFT, padx=(0,10), fill=tk.Y)
+        self.transport_config_var = tk.StringVar(value="stdio")
+        ttk.Radiobutton(transport_lf, text="stdio (推薦本地)", variable=self.transport_config_var, value="stdio").pack(anchor=tk.W)
+        ttk.Radiobutton(transport_lf, text="sse (需網路端口)", variable=self.transport_config_var, value="sse").pack(anchor=tk.W)
+        
+        security_lf = ttk.LabelFrame(top_controls_frame, text="安全選項 (影響 Claude/Compose)", padding=10)
+        security_lf.pack(side=tk.LEFT, fill=tk.Y)
+
+        self.security_options_vars = {
+            "read_only": tk.BooleanVar(value=False),
+            "no_new_privileges": tk.BooleanVar(value=False),
+            "memory_limit_docker": tk.StringVar(value=""), # 給 docker compose
+        }
+        
+        # 將安全變數添加到 security_vars 字典中
+        self.security_vars = {
+            "read_only": self.security_options_vars["read_only"],
+            "no_privileges": self.security_options_vars["no_new_privileges"],
+            "memory_limit": self.security_options_vars["memory_limit_docker"]
+        }
+        ttk.Checkbutton(security_lf, text="唯讀根檔案系統 (--read-only)", variable=self.security_options_vars["read_only"]).pack(anchor=tk.W)
+        ttk.Checkbutton(security_lf, text="禁止權限提升 (--security-opt no-new-privileges)", variable=self.security_options_vars["no_new_privileges"]).pack(anchor=tk.W)
+        mem_limit_frame = ttk.Frame(security_lf)
+        mem_limit_frame.pack(anchor=tk.W)
+        ttk.Label(mem_limit_frame, text="Compose 記憶體限制 (e.g., 512m):").pack(side=tk.LEFT)
+        ttk.Entry(mem_limit_frame, textvariable=self.security_options_vars["memory_limit_docker"], width=10).pack(side=tk.LEFT)
+
+        # --- 配置預覽 Notebook ---
+        self.config_notebook = ttk.Notebook(parent_frame)
+        self.config_notebook.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0,10))
+
+        self.config_texts = {}
+        platforms_for_preview = {
+            "claude": "Claude Desktop (claude_desktop_config.json)",
+            "vscode": "VS Code (.vscode/mcp.json)",
+            "cursor": "Cursor (MCP JSON)",
+            "compose": "Docker Compose (docker-compose.yml)"
+        }
+        for key, title in platforms_for_preview.items():
+            tab_frame = ttk.Frame(self.config_notebook, padding=5)
+            self.config_notebook.add(tab_frame, text=f' {title} ') # 加空格讓 tab 看起來更好
+            st = scrolledtext.ScrolledText(tab_frame, wrap=tk.WORD, height=15, width=80, relief=tk.SOLID, borderwidth=1)
+            st.pack(fill=tk.BOTH, expand=True)
+            self.config_texts[key] = st
+        
+        self.update_config_previews_visibility() # 初始隱藏/顯示
+
+        # --- 底部按鈕 ---
+        action_buttons_frame = ttk.Frame(parent_frame)
+        action_buttons_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10,0))
+
+        ttk.Button(action_buttons_frame, text="🚀 生成所有配置", command=self.generate_all_configs, style='Accent.TButton').pack(side=tk.LEFT, padx=(0,10))
+        ttk.Button(action_buttons_frame, text="💾 儲存當前配置", command=self.save_current_config).pack(side=tk.LEFT, padx=(0,10))
+        ttk.Button(action_buttons_frame, text="📋 複製當前配置", command=self.copy_current_config_to_clipboard).pack(side=tk.LEFT)
+
+    def create_advanced_settings_ui(self, parent_frame):
+        parent_frame.columnconfigure(0, weight=1)
+        # parent_frame.rowconfigure(0, weight=1) # 讓內容可以擴展
+
+        # Docker 設定
+        docker_settings_lf = ttk.LabelFrame(parent_frame, text="Docker 設定", padding=15)
+        docker_settings_lf.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0,15))
+        docker_settings_lf.columnconfigure(1, weight=1)
+
+        ttk.Label(docker_settings_lf, text="基礎映像登錄檔前綴:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Entry(docker_settings_lf, textvariable=self.docker_registry_var, width=30).grid(row=0, column=1, sticky=tk.EW, padx=5, pady=5)
+        
+        ttk.Label(docker_settings_lf, text="網路模式 (Compose):").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Combobox(docker_settings_lf, textvariable=self.network_mode_var, 
+                       values=["bridge", "host", "none"], state="readonly", width=28).grid(row=1, column=1, sticky=tk.EW, padx=5, pady=5)
+
+        # 資源限制 (影響 Claude / VS Code / Cursor)
+        resource_limits_lf = ttk.LabelFrame(parent_frame, text="容器資源限制 (影響 Claude/VSCode/Cursor)", padding=15)
+        resource_limits_lf.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0,15))
+        resource_limits_lf.columnconfigure(1, weight=1)
+
+        ttk.Label(resource_limits_lf, text="記憶體限制 (e.g., 512m, 1g):").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Entry(resource_limits_lf, textvariable=self.memory_limit_var, width=30).grid(row=0, column=1, sticky=tk.EW, padx=5, pady=5)
+
+        ttk.Label(resource_limits_lf, text="CPU 核心數限制 (e.g., 0.5, 1):").grid(row=1, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Entry(resource_limits_lf, textvariable=self.cpu_limit_var, width=30).grid(row=1, column=1, sticky=tk.EW, padx=5, pady=5)
+
+        # 卷掛載 (影響所有，但主要透過 Compose 實現)
+        volumes_lf = ttk.LabelFrame(parent_frame, text="卷掛載 (主要影響 Docker Compose)", padding=15)
+        volumes_lf.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        volumes_lf.columnconfigure(0, weight=1)
+        volumes_lf.rowconfigure(1, weight=1)
+
+        # 添加卷的輸入區域
+        add_volume_frame = ttk.Frame(volumes_lf)
+        add_volume_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0,10))
+        self.host_path_var = tk.StringVar()
+        self.container_path_var = tk.StringVar()
+        self.volume_mode_var = tk.StringVar(value="rw")
+
+        ttk.Label(add_volume_frame, text="主機路徑:").pack(side=tk.LEFT, padx=(0,5))
+        ttk.Entry(add_volume_frame, textvariable=self.host_path_var, width=20).pack(side=tk.LEFT, padx=(0,10))
+        ttk.Label(add_volume_frame, text="容器路徑:").pack(side=tk.LEFT, padx=(0,5))
+        ttk.Entry(add_volume_frame, textvariable=self.container_path_var, width=20).pack(side=tk.LEFT, padx=(0,10))
+        ttk.Label(add_volume_frame, text="模式:").pack(side=tk.LEFT, padx=(0,5))
+        ttk.Combobox(add_volume_frame, textvariable=self.volume_mode_var, values=["rw", "ro"], state="readonly", width=5).pack(side=tk.LEFT, padx=(0,10))
+        ttk.Button(add_volume_frame, text="➕ 新增掛載", command=self.add_volume_mount).pack(side=tk.LEFT)
+
+        # 顯示已添加卷的列表
+        self.volumes_listbox = tk.Listbox(volumes_lf, height=5, selectmode=tk.SINGLE, relief=tk.SOLID, borderwidth=1)
+        self.volumes_listbox.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0,10))
+        ttk.Button(volumes_lf, text="➖ 移除選定掛載", command=self.remove_selected_volume_mount).grid(row=2, column=0, sticky=tk.W)
+        self.refresh_volumes_listbox()
+
+    def create_help_ui(self, parent_frame):
+        parent_frame.columnconfigure(0, weight=1)
+        parent_frame.rowconfigure(0, weight=1)
+        help_text_widget = scrolledtext.ScrolledText(parent_frame, wrap=tk.WORD, relief=tk.SOLID, borderwidth=1, padx=10, pady=10, font=('Arial', 10))
+        help_text_widget.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # 載入 README.md 或特定說明內容
+        readme_path = "README.md"
+        help_content = """
+        MCP Docker 配置器使用說明
+
+        歡迎使用 MCP Docker 配置器！此工具旨在協助您輕鬆選擇、配置並生成適用於多個平台的 MCP Docker 服務器設定。
+
+        主要步驟：
+        1.  **選擇服務器 (❶)**：
+            *   瀏覽左上角的服務器列表。
+            *   使用「分類」下拉選單或「搜尋」框來篩選服務器。
+            *   雙擊服務器或點擊其名稱前的核取方塊來選擇。
+            *   右鍵點擊服務器可查看更多選項，如開啟文檔或複製映像名稱。
+
+        2.  **環境變數 (❷)**：
+            *   當您選擇服務器後，如果該服務器需要環境變數 (如 API 金鑰)，則會在此面板顯示輸入欄位。
+            *   請填寫必要的資訊。包含 "token", "key" 的敏感欄位會自動隱藏輸入內容。
+
+        3.  **配置生成 (❸)**：
+            *   選擇您想要為哪些平台 (Claude Desktop, VS Code, Cursor, Docker Compose) 生成配置。
+            *   選擇傳輸協定 (stdio 或 sse)。
+            *   設定安全選項，如唯讀檔案系統、記憶體限制等。
+            *   點擊「生成所有配置」按鈕，預覽會在下方的分頁中顯示。
+            *   您可以「儲存當前配置」到檔案或「複製當前配置」到剪貼簿。
+
+        4.  **進階設定 (❹)**：
+            *   設定 Docker 基礎映像登錄檔前綴 (預設為 docker.io)。
+            *   為 Docker Compose 設定網路模式。
+            *   為 Claude/VSCode/Cursor 設定容器的記憶體和 CPU 限制。
+            *   管理卷掛載 (主要影響 Docker Compose)。
+
+        5.  **使用說明 (❺)**：
+            *   此面板提供本工具的快速指南和提示。
+            *   您也可以點擊主視窗右下角的「❓ 說明」按鈕查看更詳細的彈出式說明。
+
+        底部按鈕功能：
+        *   **檢查 Docker**：確認 Docker 是否已安裝並正在運行。
+        *   **安裝選定服務器**：自動從 Docker Hub 下載您選擇的服務器的最新映像。
+        *   **清除所有**：取消所有服務器選擇並清空環境變數等設定。
+        *   **匯出設定**：將您當前的選擇和設定儲存到一個 JSON 檔案中，方便日後匯入。
+        *   **匯入設定**：從之前匯出的 JSON 檔案載入設定。
+
+        提示：
+        *   在服務器列表上右鍵點擊單個服務器，可以快速複製其 Docker 映像名稱或開啟其官方文檔連結。
+        *   「熱門度」欄位可以幫助您了解哪些服務器較常被使用。
+        *   生成的配置文件名和建議存放路徑會在「使用說明」或儲存時提示。
+        *   建議定期檢查並更新您的 Docker 映像以獲取最新功能和安全修補。
+
+        如果您在專案根目錄下有名為 README.md 的檔案，這裡會優先顯示該檔案的內容。
+        """
+        if os.path.exists(readme_path):
+            try:
+                with open(readme_path, 'r', encoding='utf-8') as f:
+                    readme_content = f.read()
+                help_text_widget.insert(tk.INSERT, readme_content)
+            except Exception as e:
+                help_text_widget.insert(tk.INSERT, f"無法讀取 README.md: {e}\n\n{help_content.strip()}")
+        else:
+            help_text_widget.insert(tk.INSERT, help_content.strip())
+        help_text_widget.config(state=tk.DISABLED)
         
     def create_bottom_buttons(self, parent):
         """底部按鈕區域"""
@@ -503,29 +690,57 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
                 server_id, info.get("name", ""), info.get("description", ""), info.get("category", "") , info.get("popularity", "")
             ]):
                 continue
+                
+            # 創建精緻的標籤和顯示
+            selected = "✅" if server_id in self.selected_servers else "⬜"
+            
+            # 安全級別標籤
+            security_level = info.get("security_level", "medium")
+            security_emoji = {"high": "🔒", "medium": "🔐", "low": "🔓"}.get(security_level, "🔐")
+            
+            # Docker 需求標籤
+            docker_required = info.get("docker_required", True)
+            docker_emoji = "🐳" if docker_required else "📦"
+            
+            # 熱門程度標籤
+            popularity = info.get("popularity", "中等")
+            popularity_emoji = {"極高": "🔥", "高": "⭐", "中等": "🌟", "低": "💫"}.get(popularity, "🌟")
+            
+            # 官方標籤
+            official_emoji = "🏛️" if info.get("official", False) else ""
+            
+            # 組合名稱顯示
+            name_with_tags = f"{info.get('name', 'N/A')} {security_emoji}{docker_emoji}{popularity_emoji}{official_emoji}"
             
             # 顯示應用場景 - 新增
-            use_cases_str = ", ".join(info.get("use_cases", []))
-            description_with_use_cases = f"{info.get('description', '')}\n應用: {use_cases_str}"
+            use_cases = info.get("use_cases", [])
+            use_cases_str = "、".join(use_cases[:3])  # 只顯示前3個應用場景
+            if len(use_cases) > 3:
+                use_cases_str += "..."
+                
+            description_with_use_cases = f"{info.get('description', '')}\n🎯 應用: {use_cases_str}"
 
-            selected = "✓" if server_id in self.selected_servers else ""
-            official_symbol = "🔥" if info.get("official", False) else ""
-            popularity_indicator = f" ({info.get('popularity', 'N/A')})" # 熱門程度顯示
-            
-            # 插入項目，包含熱門程度和更詳細的描述
+            # 插入項目，包含精緻標籤
             item_id = self.server_tree.insert("", tk.END, iid=server_id, values=(
                 selected, 
-                info.get("name", "N/A") + popularity_indicator, 
+                name_with_tags, 
                 info.get("category", "N/A"), 
-                description_with_use_cases, # 使用包含應用場景的描述
-                info.get("image", "N/A"), 
-                official_symbol
+                description_with_use_cases,
+                info.get("image", "N/A")
             ))
             
-            # 設定顏色 (官方服務器用不同顏色)
-            if info.get("official", False):
-                self.server_tree.set(item_id, "官方", "🔥")
-                
+            # 根據安全級別設定顏色
+            if security_level == "high":
+                self.server_tree.set(item_id, "name", name_with_tags)
+                # 可以添加標籤來設定不同的顏色
+                self.server_tree.item(item_id, tags=("high_security",))
+            elif security_level == "low":
+                self.server_tree.item(item_id, tags=("low_security",))
+            
+        # 配置標籤顏色
+        self.server_tree.tag_configure("high_security", background="#ffe6e6")  # 淺紅色背景
+        self.server_tree.tag_configure("low_security", background="#e6ffe6")   # 淺綠色背景
+        
     def filter_servers(self, event=None):
         """篩選服務器列表"""
         self.populate_server_list()
@@ -552,7 +767,7 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
         """處理服務器點擊事件"""
         region = self.server_tree.identify("region", event.x, event.y)
         if region == "cell":
-            column = self.server_tree.identify_column(event.x, event.y)
+            column = self.server_tree.identify("column", event.x, event.y)
             if column == "#1":  # 選擇欄位
                 self.toggle_server_selection(event)
                 
@@ -579,8 +794,8 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
             for uc in use_cases:
                 use_cases_menu.add_command(label=uc, state=tk.DISABLED) # 應用場景不可點擊
             context_menu.add_cascade(label="💡 主要應用場景", menu=use_cases_menu)
-            context_menu.add_separator()
-
+        context_menu.add_separator()
+        
         if item in self.selected_servers:
             context_menu.add_command(label="❌ 取消選擇", 
                                    command=lambda: self.toggle_selection(item))
@@ -636,11 +851,56 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
         self.transport_vars.clear()
         
         if not self.selected_servers:
-            ttk.Label(self.env_scroll_frame, text="請先選擇 MCP 服務器", 
-                     style='Info.TLabel').grid(row=0, column=0, pady=20)
+            # 顯示環境變數管理說明
+            info_frame = ttk.LabelFrame(self.env_scroll_frame, text="🔧 環境變數管理說明", padding=15)
+            info_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=10, padx=5)
+            
+            info_text = """
+📋 環境變數儲存和管理方式：
+
+🔐 安全儲存：
+  • API 金鑰等敏感資訊不會儲存在配置檔案中
+  • 匯出設定時敏感資訊會被隱藏處理
+  • 建議使用系統環境變數或 .env 檔案管理
+
+💾 配置方式：
+  1. 系統環境變數（推薦生產環境）
+  2. .env 檔案（適合開發環境）
+  3. Docker secrets（適合 Docker Compose）
+  4. 外部密鑰管理服務（如 HashiCorp Vault）
+
+🔄 修改環境變數：
+  • 修改系統環境變數後重啟應用
+  • 更新 .env 檔案內容
+  • 使用「匯入設定」功能載入新配置
+  • 重新配置並生成新的配置檔案
+
+💡 最佳實踐：
+  • 定期輪換 API 金鑰
+  • 不要在版本控制中提交敏感資訊
+  • 使用最小權限原則設定 API 金鑰權限
+  • 為不同環境（開發/測試/生產）使用不同的金鑰
+            """
+            
+            ttk.Label(info_frame, text=info_text, justify=tk.LEFT, 
+                     font=('Arial', 10)).grid(row=0, column=0, sticky=tk.W)
+            
+            # 顯示選擇提示
+            select_frame = ttk.Frame(self.env_scroll_frame)
+            select_frame.grid(row=1, column=0, pady=20)
+            ttk.Label(select_frame, text="👈 請先在左側選擇 MCP 服務器開始配置", 
+                     style='Header.TLabel', font=('Arial', 12)).pack()
             return
             
         row = 0
+        # 添加環境變數管理說明標題
+        title_frame = ttk.Frame(self.env_scroll_frame)
+        title_frame.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=(0, 10), padx=5)
+        ttk.Label(title_frame, text="🔧 環境變數配置", style='Category.TLabel').pack(side=tk.LEFT)
+        ttk.Button(title_frame, text="💡 管理說明", 
+                  command=self.show_env_management_help).pack(side=tk.RIGHT)
+        row += 1
+        
         for server_id, server_info in self.selected_servers.items():
             # 服務器標題
             server_frame = ttk.LabelFrame(self.env_scroll_frame, 
@@ -648,34 +908,146 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
                                         padding="10")
             server_frame.grid(row=row, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=10, padx=5)
             
-            # 傳輸協定選擇 (如果支援多種)
-            if len(server_info["transport"]) > 1:
-                ttk.Label(server_frame, text="傳輸協定:", style='Header.TLabel').grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
-                transport_var = tk.StringVar(value=server_info["transport"][0])
-                self.transport_vars[server_id] = transport_var
-                
-                for i, transport in enumerate(server_info["transport"]):
-                    ttk.Radiobutton(server_frame, text=transport.upper(), 
-                                  variable=transport_var, value=transport).grid(
-                                  row=0, column=i+1, padx=10)
-            
             # 環境變數輸入
-            env_row = 1
-            for env_var in server_info["env_vars"]:
-                ttk.Label(server_frame, text=f"{env_var}:", style='Header.TLabel').grid(
-                    row=env_row, column=0, sticky=tk.W, pady=5)
+            env_row = 0
+            if server_info.get("environment_vars"):
+                for env_var, default_value in server_info["environment_vars"].items():
+                    ttk.Label(server_frame, text=f"{env_var}:", style='Header.TLabel').grid(
+                        row=env_row, column=0, sticky=tk.W, pady=5)
                     
-                entry = ttk.Entry(server_frame, width=50, show="*" if "token" in env_var.lower() or "key" in env_var.lower() else None)
-                entry.grid(row=env_row, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5, padx=(10, 0))
-                
-                self.env_entries[f"{server_id}.{env_var}"] = entry
-                env_row += 1
+                    # 判斷是否為敏感資訊
+                    is_sensitive = any(keyword in env_var.lower() for keyword in ["token", "key", "secret", "password"])
+                    entry = ttk.Entry(server_frame, width=50, show="*" if is_sensitive else None)
+                    entry.grid(row=env_row, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5, padx=(10, 0))
+                    
+                    # 預填預設值（除了敏感資訊）
+                    if not is_sensitive and default_value and default_value != "your_token_here":
+                        entry.insert(0, default_value)
+                    
+                    self.env_entries[f"{server_id}.{env_var}"] = entry
+                    env_row += 1
+            
+            # 如果沒有環境變數需求，顯示提示
+            if env_row == 0:
+                ttk.Label(server_frame, text="✅ 此服務器無需環境變數配置", 
+                         style='Header.TLabel').grid(row=0, column=0, pady=10)
                 
             server_frame.columnconfigure(1, weight=1)
             row += 1
             
         self.env_scroll_frame.columnconfigure(0, weight=1)
         
+    def show_env_management_help(self):
+        """顯示環境變數管理幫助"""
+        help_window = tk.Toplevel(self.root)
+        help_window.title("🔧 環境變數管理說明")
+        help_window.geometry("700x600")
+        help_window.transient(self.root)
+        help_window.grab_set()
+        
+        main_frame = ttk.Frame(help_window, padding=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 標題
+        ttk.Label(main_frame, text="🔧 環境變數管理完整指南", 
+                 style='Title.TLabel').pack(pady=(0, 15))
+        
+        # 說明內容
+        help_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, height=25, width=70,
+                                             font=('Arial', 11))
+        help_text.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        
+        content = """
+🔐 安全性原則
+
+環境變數包含 API 金鑰等敏感資訊，需要妥善管理：
+• 永遠不要在程式碼或配置檔案中硬編碼敏感資訊
+• 使用環境變數、.env 檔案或專業的密鑰管理服務
+• 定期輪換 API 金鑰和令牌
+• 為不同環境使用不同的憑證
+
+💾 儲存方式
+
+1. 系統環境變數（推薦生產環境）
+   Windows: 
+   set GITHUB_PERSONAL_ACCESS_TOKEN=your_token
+   setx GITHUB_PERSONAL_ACCESS_TOKEN your_token  # 永久設置
+   
+   macOS/Linux:
+   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token
+   echo 'export GITHUB_PERSONAL_ACCESS_TOKEN=your_token' >> ~/.bashrc
+
+2. .env 檔案（適合開發環境）
+   在專案根目錄創建 .env 檔案：
+   GITHUB_PERSONAL_ACCESS_TOKEN=your_token
+   SLACK_BOT_TOKEN=xoxb-your-token
+   DATABASE_URI=postgresql://user:pass@localhost/db
+
+3. Docker Compose 環境檔案
+   創建 .env 檔案供 docker-compose.yml 使用：
+   GITHUB_TOKEN=your_token
+   然後在 docker-compose.yml 中引用：
+   environment:
+     - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_TOKEN}
+
+4. Docker Secrets（生產環境）
+   echo "your_token" | docker secret create github_token -
+   在 docker-compose.yml 中使用：
+   secrets:
+     - github_token
+
+🔄 修改和更新
+
+當需要更新環境變數時：
+
+1. 更新環境變數值
+2. 重啟相關的 Docker 容器或應用程式
+3. 驗證新的配置是否生效
+4. 更新備份和文檔
+
+對於此工具：
+1. 修改環境變數後
+2. 重新選擇服務器並輸入新值
+3. 重新生成配置檔案
+4. 使用新配置重新部署
+
+🛡️ 最佳實踐
+
+• 使用專業的密鑰管理服務（如 HashiCorp Vault、AWS Secrets Manager）
+• 實施密鑰輪換策略
+• 監控 API 金鑰的使用情況
+• 為每個服務使用最小權限的 API 金鑰
+• 在 .gitignore 中排除 .env 檔案
+• 定期審查和清理未使用的憑證
+
+📁 檔案位置建議
+
+開發環境：
+  專案根目錄/.env
+  ~/.bashrc 或 ~/.zshrc
+
+生產環境：
+  Docker secrets
+  Kubernetes secrets
+  雲端密鑰管理服務
+
+💡 故障排除
+
+如果環境變數無法讀取：
+1. 檢查變數名稱是否正確
+2. 確認環境變數已正確設置
+3. 重啟終端或應用程式
+4. 檢查 Docker 容器是否正確掛載環境變數
+5. 查看應用程式日誌獲取更多資訊
+        """
+        
+        help_text.insert(tk.INSERT, content.strip())
+        help_text.config(state=tk.DISABLED)
+        
+        # 關閉按鈕
+        ttk.Button(main_frame, text="關閉", 
+                  command=help_window.destroy).pack(pady=(10, 0))
+    
     def update_config_preview(self):
         """更新配置預覽"""
         if not hasattr(self, 'config_texts'):
@@ -724,47 +1096,39 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
             }
             
             # 安全選項
-            if self.security_vars.get("read_only", tk.BooleanVar(value=True)).get():
+            if self.security_vars.get("read_only", tk.BooleanVar(value=False)).get():
                 server_config["args"].extend(["--read-only"])
-            if self.security_vars.get("no_privileges", tk.BooleanVar(value=True)).get():
+            if self.security_vars.get("no_privileges", tk.BooleanVar(value=False)).get():
                 server_config["args"].extend(["--security-opt", "no-new-privileges"])
-            if self.security_vars.get("memory_limit", tk.BooleanVar(value=True)).get():
-                server_config["args"].extend(["--memory", self.memory_var.get()])
+            
+            # 記憶體限制
+            memory_limit = self.memory_limit_var.get()
+            if memory_limit and memory_limit != "":
+                server_config["args"].extend(["--memory", memory_limit])
+            
+            # CPU 限制  
+            cpu_limit = self.cpu_limit_var.get()
+            if cpu_limit and cpu_limit != "":
+                server_config["args"].extend(["--cpus", cpu_limit])
                 
             # 環境變數
             env_vars = {}
-            for env_var in server_info["env_vars"]:
-                key = f"{server_id}.{env_var}"
-                if key in self.env_entries:
-                    value = self.env_entries[key].get()
-                    if value:
-                        server_config["args"].extend(["-e", env_var])
-                        env_vars[env_var] = value
-                        
-            # 傳輸協定處理
-            transport_options = server_info.get("transport", ["stdio"])
-            transport_to_use = self.transport_vars.get(server_id, tk.StringVar(value=transport_options[0])).get()
+            if server_info.get("environment_vars"):
+                for env_var in server_info["environment_vars"].keys():
+                    key = f"{server_id}.{env_var}"
+                    if key in self.env_entries:
+                        value = self.env_entries[key].get()
+                        if value:
+                            server_config["args"].extend(["-e", f"{env_var}={value}"])
+                            env_vars[env_var] = value
             
-            if transport_to_use == "sse":
-                default_port = 5008 # 預設SSE端口，可以考慮從catalog讀取
-                # 檢查 server_info["ports"] 是否有值且不為空
-                # 如果 catalog 中定義了 ports，優先使用 catalog 中的第一個 port
-                if server_info.get("ports") and len(server_info["ports"]) > 0:
-                    try:
-                        actual_port = int(server_info["ports"][0])
-                        server_config["args"].extend(["-p", f"{actual_port}:{actual_port}"])
-                    except ValueError:
-                        # 如果 port 不是數字，則使用 default_port
-                        server_config["args"].extend(["-p", f"{default_port}:{default_port}"])
-                else:
-                    server_config["args"].extend(["-p", f"{default_port}:{default_port}"])
-                server_config["args"].append(server_info["image"])
-                server_config["args"].extend(["--transport", "sse"])
-            else:
-                server_config["args"].append(server_info["image"])
-                
-            if env_vars:
-                server_config["env"] = env_vars
+            # 卷掛載
+            if server_info.get("volumes"):
+                for volume in server_info["volumes"]:
+                    server_config["args"].extend(["-v", volume])
+                        
+            # 添加映像名稱
+            server_config["args"].append(server_info["image"])
                 
             config["mcpServers"][server_id] = server_config
             
@@ -777,14 +1141,15 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
         
         # 收集所有環境變數輸入
         for server_id, server_info in self.selected_servers.items():
-            for env_var in server_info["env_vars"]:
-                input_id = f"{server_id}_{env_var.lower()}"
-                inputs.append({
-                    "type": "promptString",
-                    "id": input_id,
-                    "description": f"{server_info['name']} {env_var}",
-                    "password": "token" in env_var.lower() or "key" in env_var.lower()
-                })
+            if server_info.get("environment_vars"):
+                for env_var in server_info["environment_vars"].keys():
+                    input_id = f"{server_id}_{env_var.lower()}"
+                    inputs.append({
+                        "type": "promptString",
+                        "id": input_id,
+                        "description": f"{server_info['name']} {env_var}",
+                        "password": any(keyword in env_var.lower() for keyword in ["token", "key", "secret", "password"])
+                    })
                 
         # 生成服務器配置
         for server_id, server_info in self.selected_servers.items():
@@ -794,20 +1159,16 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
             }
             
             # 安全選項
-            if self.security_vars.get("read_only", tk.BooleanVar(value=True)).get():
+            if self.security_vars.get("read_only", tk.BooleanVar(value=False)).get():
                 server_config["args"].extend(["--read-only"])
                 
-            env_vars = {}
-            for env_var in server_info["env_vars"]:
-                input_id = f"{server_id}_{env_var.lower()}"
-                server_config["args"].extend(["-e", env_var])
-                env_vars[env_var] = f"${{input:{input_id}}}"
+            # 環境變數處理
+            if server_info.get("environment_vars"):
+                for env_var in server_info["environment_vars"].keys():
+                    input_id = f"{server_id}_{env_var.lower()}"
+                    server_config["args"].extend(["-e", f"{env_var}=${{input:{input_id}}}"])
                 
             server_config["args"].append(server_info["image"])
-            
-            if env_vars:
-                server_config["env"] = env_vars
-                
             servers[server_id] = server_config
             
         config = {
@@ -829,12 +1190,15 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
             
             # 環境變數處理
             env_vars = {}
-            for env_var in server_info["env_vars"]:
-                key = f"{server_id}.{env_var}"
-                if key in self.env_entries:
-                    value = self.env_entries[key].get()
-                    if value:
-                        env_vars[env_var] = value
+            if server_info.get("environment_vars"):
+                for env_var in server_info["environment_vars"].keys():
+                    key = f"{server_id}.{env_var}"
+                    if key in self.env_entries:
+                        value = self.env_entries[key].get()
+                        if value:
+                            env_vars[env_var] = value
+                        else:
+                            env_vars[env_var] = f"<YOUR_{env_var}_HERE>"
                     else:
                         env_vars[env_var] = f"<YOUR_{env_var}_HERE>"
                         
@@ -871,41 +1235,49 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
             
             # 安全選項
             security_opts = []
-            if self.security_vars.get("no_privileges", tk.BooleanVar(value=True)).get():
+            if self.security_vars.get("no_privileges", tk.BooleanVar(value=False)).get():
                 security_opts.append("no-new-privileges:true")
                 
             if security_opts:
                 service_config["security_opt"] = security_opts
                 
-            if self.security_vars.get("read_only", tk.BooleanVar(value=True)).get():
+            if self.security_vars.get("read_only", tk.BooleanVar(value=False)).get():
                 service_config["read_only"] = True
                 service_config["tmpfs"] = ["/tmp"]
                 
             # 資源限制
-            if self.security_vars.get("memory_limit", tk.BooleanVar(value=True)).get():
-                service_config["mem_limit"] = self.memory_var.get()
+            memory_limit = self.security_vars.get("memory_limit", tk.StringVar()).get()
+            if memory_limit and memory_limit.strip():
+                service_config["mem_limit"] = memory_limit
+            elif self.memory_limit_var.get():
+                service_config["mem_limit"] = self.memory_limit_var.get()
                 
             # 環境變數
             env_vars = []
-            for env_var in server_info["env_vars"]:
-                key = f"{server_id}.{env_var}"
-                if key in self.env_entries:
-                    value = self.env_entries[key].get()
-                    if value:
-                        env_vars.append(f"{env_var}={value}")
+            if server_info.get("environment_vars"):
+                for env_var in server_info["environment_vars"].keys():
+                    key = f"{server_id}.{env_var}"
+                    if key in self.env_entries:
+                        value = self.env_entries[key].get()
+                        if value:
+                            env_vars.append(f"{env_var}={value}")
+                        else:
+                            env_vars.append(f"{env_var}=${{{env_var}}}")
                     else:
                         env_vars.append(f"{env_var}=${{{env_var}}}")
-                else:
-                    env_vars.append(f"{env_var}=${{{env_var}}}")
                         
             if env_vars:
                 service_config["environment"] = env_vars
                 
             # 端口映射
-            if server_info.get("ports"):
+            if server_info.get("default_ports"):
                 # 確保端口是字串列表
-                ports_to_map = [str(p) for p in server_info["ports"]]
+                ports_to_map = [str(p) for p in server_info["default_ports"]]
                 service_config["ports"] = [f"{port}:{port}" for port in ports_to_map]
+            
+            # 卷掛載
+            if server_info.get("volumes"):
+                service_config["volumes"] = server_info["volumes"]
                 
             config["services"][f"{server_id}-mcp"] = service_config
             
@@ -1166,10 +1538,12 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
             "platform_settings": {k: v.get() for k, v in self.platform_vars.items()},
             "security_settings": {k: v.get() for k, v in self.security_vars.items()},
             "resource_settings": {
-                "memory": self.memory_var.get(),
-                "cpu": self.cpu_var.get(),
-                "network": self.network_var.get()
-            }
+                "memory": self.memory_limit_var.get(),
+                "cpu": self.cpu_limit_var.get(),
+                "network": self.network_mode_var.get()
+            },
+            "quick_setup": self.quick_setup_var.get(),
+            "auto_best_practices": self.auto_best_practices_var.get()
         }
         
         # 匯出環境變數 (不包含實際值，只包含欄位名稱)
@@ -1230,9 +1604,9 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
                     
             # 匯入資源設定
             resource_settings = settings.get("resource_settings", {})
-            self.memory_var.set(resource_settings.get("memory", "512m"))
-            self.cpu_var.set(resource_settings.get("cpu", "1.0"))
-            self.network_var.set(resource_settings.get("network", "bridge"))
+            self.memory_limit_var.set(resource_settings.get("memory", "512m"))
+            self.cpu_limit_var.set(resource_settings.get("cpu", "1.0"))
+            self.network_mode_var.set(resource_settings.get("network", "bridge"))
             
             # 更新UI
             self.populate_server_list()
@@ -1482,11 +1856,59 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
             
     def browse_volume(self):
         """瀏覽選擇卷掛載路徑"""
-        path = filedialog.askdirectory(title="選擇主機路徑")
-        if path:
-            # 這裡可以將路徑自動填入到添加卷掛載對話框
-            messagebox.showinfo("路徑", f"選擇的路徑: {path}")
+        filename = filedialog.askopenfilename(title="選擇檔案路徑")
+        if filename:
+            self.host_path_var.set(filename)
 
+    def update_config_previews_visibility(self):
+        """根據平台選擇更新配置預覽的可見性"""
+        pass  # 現在只是一個占位符
+    
+    def check_docker(self):
+        """檢查 Docker 狀態"""
+        self.check_docker_status()
+    
+    def install_servers(self):
+        """安裝選定的服務器"""
+        self.install_selected_servers()
+    
+    def save_current_config(self):
+        """儲存當前配置"""
+        self.save_all_configs()
+    
+    def copy_current_config_to_clipboard(self):
+        """複製當前配置到剪貼簿"""
+        self.copy_configs()
+    
+    def add_volume_mount(self):
+        """添加卷掛載"""
+        host_path = self.host_path_var.get().strip()
+        container_path = self.container_path_var.get().strip()
+        mode = self.volume_mode_var.get()
+        
+        if host_path and container_path:
+            volume_entry = f"{host_path}:{container_path}:{mode}"
+            self.volumes_listbox.insert(tk.END, volume_entry)
+            self.host_path_var.set("")
+            self.container_path_var.set("")
+        else:
+            messagebox.showwarning("警告", "請輸入主機路徑和容器路徑")
+    
+    def remove_selected_volume_mount(self):
+        """移除選定的卷掛載"""
+        selection = self.volumes_listbox.curselection()
+        if selection:
+            self.volumes_listbox.delete(selection[0])
+        else:
+            messagebox.showwarning("警告", "請先選擇要移除的卷掛載")
+    
+    def refresh_volumes_listbox(self):
+        """刷新卷掛載列表"""
+        pass  # 現在只是一個占位符
+    
+    def show_help_popup(self):
+        """顯示說明彈出視窗"""
+        self.show_detailed_help()
 
 def main():
     """主函數 - 啟動應用程式"""

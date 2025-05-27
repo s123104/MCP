@@ -13,6 +13,7 @@ import os
 import webbrowser
 from datetime import datetime
 import platform
+import yaml # 新增，用於生成 docker-compose.yml
 
 # 全域變數用於儲存從 JSON 載入的伺服器數據
 MCP_SERVERS_DATA = []
@@ -23,7 +24,6 @@ def load_mcp_servers_from_catalog():
     try:
         with open('mcp_catalog.json', 'r', encoding='utf-8') as f:
             MCP_SERVERS_DATA = json.load(f)
-        # 將列表轉換為字典，以 id 為鍵，方便查找
         return {server['id']: server for server in MCP_SERVERS_DATA}
     except FileNotFoundError:
         messagebox.showerror("錯誤", "找不到 mcp_catalog.json 檔案！請確保該檔案存在於專案根目錄。")
@@ -35,16 +35,13 @@ def load_mcp_servers_from_catalog():
 class MCPInstallerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("MCP Docker 安裝器 - Model Context Protocol 服務器管理")
-        self.root.geometry("1200x800")
+        self.root.title("MCP Docker 安裝器 - 簡約版")
+        self.root.geometry("1250x850") # 調整視窗大小
         
-        # 設定樣式
-        style = ttk.Style()
-        style.theme_use('clam')
+        self.setup_styles()
         
-        # 從 catalog 載入 MCP 服務器列表
         self.mcp_servers = load_mcp_servers_from_catalog()
-        if not self.mcp_servers: # 如果載入失敗，則不繼續初始化GUI
+        if not self.mcp_servers:
             self.root.quit()
             return
         
@@ -52,798 +49,704 @@ class MCPInstallerGUI:
         self.env_entries = {}
         
         self.create_widgets()
+        self.update_status_bar("就緒")
+
+    def setup_styles(self):
+        style = ttk.Style(self.root)
+        style.theme_use('clam')
+
+        BG_COLOR = '#f0f2f5' 
+        FG_COLOR = '#333333' 
+        ACCENT_COLOR = '#0078d4' 
+        BUTTON_BG = '#0078d4'
+        BUTTON_FG = '#ffffff'
+        BUTTON_ACTIVE_BG = '#005a9e'
+        TREE_HEADER_BG = '#e1e1e1'
+        TREE_SELECTED_BG = '#cce4f7' 
+        INPUT_BG = '#ffffff'
+        INPUT_FG = '#333333'
+        LABEL_FG = '#111111'
+        STATUS_BAR_BG = '#0078d4'
+        STATUS_BAR_FG = '#ffffff'
+
+        self.root.configure(bg=BG_COLOR)
+
+        style.configure('.', background=BG_COLOR, foreground=FG_COLOR, font=('Arial', 10))
+        style.configure('TFrame', background=BG_COLOR)
+        style.configure('TLabel', background=BG_COLOR, foreground=LABEL_FG, font=('Arial', 10))
+        style.configure('Header.TLabel', font=('Arial', 11, 'bold'), foreground=ACCENT_COLOR)
+        style.configure('Title.TLabel', font=('Arial', 16, 'bold'), foreground=FG_COLOR, anchor=tk.CENTER)
+
+        style.configure('TNotebook', background=BG_COLOR, tabmargins=[2, 5, 2, 0])
+        style.configure('TNotebook.Tab', padding=[10, 5], font=('Arial', 10, 'bold'), foreground=FG_COLOR)
+        style.map('TNotebook.Tab', 
+                  background=[('selected', BG_COLOR)], 
+                  foreground=[('selected', ACCENT_COLOR)],
+                  expand=[('selected', [1, 1, 1, 0])])
+
+        style.configure('TButton', font=('Arial', 10, 'bold'), 
+                        background=BUTTON_BG, foreground=BUTTON_FG,
+                        padding=(10, 5),
+                        borderwidth=0, relief='flat')
+        style.map('TButton', 
+                  background=[('active', BUTTON_ACTIVE_BG), ('pressed', BUTTON_ACTIVE_BG)],
+                  relief=[('pressed', 'flat'), ('active', 'flat')])
+        style.configure('Accent.TButton', background=ACCENT_COLOR, foreground='#ffffff') # For primary action buttons
+        style.map('Accent.TButton', background=[('active', '#005fba')])
+
+        style.configure('Treeview', 
+                        background=INPUT_BG, foreground=INPUT_FG, 
+                        fieldbackground=INPUT_BG, rowheight=28, font=('Arial', 10))
+        style.configure('Treeview.Heading', font=('Arial', 10, 'bold'), 
+                          background=TREE_HEADER_BG, foreground=FG_COLOR, relief='flat', padding=(5,5))
+        style.map('Treeview.Heading', background=[('active', '#cccccc')])
+        style.map('Treeview', background=[('selected', TREE_SELECTED_BG)], foreground=[('selected', FG_COLOR)])
+
+        self.root.option_add("*TEntry*Font", ('Arial', 10))
+        self.root.option_add("*Text*Font", ('Arial', 10))
+        self.root.option_add("*Text*Background", INPUT_BG)
+        self.root.option_add("*Text*selectBackground", ACCENT_COLOR)
+
+        style.configure('TLabelframe', background=BG_COLOR, borderwidth=1, relief="groove", padding=10)
+        style.configure('TLabelframe.Label', background=BG_COLOR, foreground=ACCENT_COLOR, font=('Arial', 11, 'bold'))
         
+        self.status_bar_style = {
+            'bg': STATUS_BAR_BG,
+            'fg': STATUS_BAR_FG,
+            'font': ('Arial', 10, 'bold'),
+            'relief': tk.SUNKEN,
+            'anchor': tk.W,
+            'padx': 10
+        }
+
     def create_widgets(self):
-        # 建立主要框架
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # 主框架
+        main_frame = ttk.Frame(self.root, padding=(15,15))
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(1, weight=1) # 讓 Notebook 區域可以擴展
         
         # 標題
-        title_label = ttk.Label(main_frame, text="MCP Docker 服務器安裝器", 
-                               font=('TkDefaultFont', 16, 'bold'))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+        title_label = ttk.Label(main_frame, text="MCP Docker 服務器安裝與配置 (簡約版)", style='Title.TLabel')
+        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20), sticky=tk.EW)
         
-        # 建立 Notebook（分頁）
+        # Notebook 分頁
         notebook = ttk.Notebook(main_frame)
-        notebook.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        notebook.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
         
-        # 分頁 1: 服務器選擇
-        self.create_server_selection_tab(notebook)
+        # 分頁 1: 服務器選擇與環境變數 (合併)
+        self.server_env_frame = ttk.Frame(notebook, padding=10)
+        notebook.add(self.server_env_frame, text=' ❶ 選擇服務器與配置環境變數 ')
+        self.create_server_env_tab(self.server_env_frame)
         
-        # 分頁 2: 環境變數配置
-        self.create_env_config_tab(notebook)
+        # 分頁 2: 配置生成
+        self.config_gen_frame = ttk.Frame(notebook, padding=10)
+        notebook.add(self.config_gen_frame, text=' ❷ 生成配置與腳本 ')
+        self.create_config_generation_tab(self.config_gen_frame)
         
-        # 分頁 3: 配置生成
-        self.create_config_generation_tab(notebook)
+        # 分頁 3: 安裝指南 (簡化)
+        self.install_guide_frame = ttk.Frame(notebook, padding=10)
+        notebook.add(self.install_guide_frame, text=' ❸ 快速指南 ')
+        self.create_installation_guide_tab(self.install_guide_frame)
         
-        # 分頁 4: 安裝指南
-        self.create_installation_guide_tab(notebook)
+        # 底部按鈕區域
+        button_frame = ttk.Frame(main_frame, padding=(0,10,0,0))
+        button_frame.grid(row=2, column=0, columnspan=2, sticky=tk.EW, pady=10)
+        button_frame.columnconfigure(0, weight=1) # 讓按鈕組居中
+        button_frame.columnconfigure(2, weight=1)
+
+        action_buttons_subframe = ttk.Frame(button_frame)
+        action_buttons_subframe.grid(row=0, column=1) # 放置在中間欄
         
-        # 按鈕區域
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=2, column=0, columnspan=3, pady=10)
-        
-        ttk.Button(button_frame, text="檢查 Docker", 
-                  command=self.check_docker).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="生成配置", 
-                  command=self.generate_configs).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="安裝選定服務器", 
-                  command=self.install_servers).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="清除所有", 
-                  command=self.clear_all).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="說明", 
-                  command=self.show_help).pack(side=tk.LEFT, padx=5)
+        ttk.Button(action_buttons_subframe, text="🔍 檢查 Docker", command=self.check_docker).pack(side=tk.LEFT, padx=5)
+        ttk.Button(action_buttons_subframe, text="🚀 生成配置", command=self.generate_configs, style='Accent.TButton').pack(side=tk.LEFT, padx=5)
+        ttk.Button(action_buttons_subframe, text="📥 安裝選定服務器", command=self.install_servers).pack(side=tk.LEFT, padx=5)
+        ttk.Button(action_buttons_subframe, text="🧹 清除所有", command=self.clear_all).pack(side=tk.LEFT, padx=5)
+        ttk.Button(action_buttons_subframe, text="❓ 說明", command=self.show_help_popup).pack(side=tk.LEFT, padx=5)
         
         # 狀態列
-        self.status_var = tk.StringVar()
-        self.status_var.set("就緒")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, 
-                              relief=tk.SUNKEN, anchor=tk.W)
-        status_bar.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        self.status_var = tk.StringVar(value="就緒")
+        status_bar = tk.Label(self.root, textvariable=self.status_var, **self.status_bar_style)
+        status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.update_status_bar("MCP Docker 安裝器 - 就緒")
         
-        # 配置網格權重
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(1, weight=1)
+    def create_server_env_tab(self, parent_frame):
+        parent_frame.columnconfigure(0, weight=1) # 左側 Treeview
+        parent_frame.columnconfigure(1, weight=1) # 右側 Env Vars
+        parent_frame.rowconfigure(0, weight=1)
+
+        # 左側：服務器選擇
+        server_list_lf = ttk.LabelFrame(parent_frame, text="可用的 MCP 服務器", padding=10)
+        server_list_lf.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0,10))
+        server_list_lf.columnconfigure(0, weight=1)
+        server_list_lf.rowconfigure(1, weight=1)
+
+        # 篩選與搜尋
+        filter_bar = ttk.Frame(server_list_lf)
+        filter_bar.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0,10))
         
-    def create_server_selection_tab(self, parent):
-        """建立服務器選擇分頁"""
-        frame = ttk.Frame(parent, padding="10")
-        parent.add(frame, text="服務器選擇")
-        
-        # 篩選框架
-        filter_frame = ttk.LabelFrame(frame, text="篩選選項", padding="5")
-        filter_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        ttk.Label(filter_frame, text="分類:").grid(row=0, column=0, padx=5)
-        categories = ["全部"] + list(set(server.get("category", "") for server in self.mcp_servers.values()))
+        ttk.Label(filter_bar, text="分類:").pack(side=tk.LEFT, padx=(0,5))
+        categories = ["全部"] + sorted(list(set(s.get("category", "未分類") for s in self.mcp_servers.values())))
         self.category_var = tk.StringVar(value="全部")
-        category_combo = ttk.Combobox(filter_frame, textvariable=self.category_var, 
-                                     values=categories, state="readonly")
-        category_combo.grid(row=0, column=1, padx=5)
-        category_combo.bind('<<ComboboxSelected>>', self.filter_servers)
+        category_combo = ttk.Combobox(filter_bar, textvariable=self.category_var, values=categories, 
+                                      state="readonly", width=15, font=('Arial', 10))
+        category_combo.pack(side=tk.LEFT, padx=(0,10))
+        category_combo.bind("<<ComboboxSelected>>", self.filter_servers)
         
-        # 搜尋框
-        ttk.Label(filter_frame, text="搜尋:").grid(row=0, column=2, padx=5)
+        ttk.Label(filter_bar, text="搜尋:").pack(side=tk.LEFT, padx=(0,5))
         self.search_var = tk.StringVar()
-        search_entry = ttk.Entry(filter_frame, textvariable=self.search_var)
-        search_entry.grid(row=0, column=3, padx=5)
-        search_entry.bind('<KeyRelease>', self.filter_servers)
+        search_entry = ttk.Entry(filter_bar, textvariable=self.search_var, width=25, font=('Arial', 10))
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        search_entry.bind("<KeyRelease>", self.filter_servers)
+
+        # Treeview
+        columns = ('selected', 'name', 'category', 'description', 'image')
+        self.server_tree = ttk.Treeview(server_list_lf, columns=columns, show='headings', height=15)
+        self.server_tree.heading('selected', text='✓')
+        self.server_tree.heading('name', text='名稱 (熱門度)')
+        self.server_tree.heading('category', text='分類')
+        self.server_tree.heading('description', text='描述與應用')
+        self.server_tree.heading('image', text='Docker 映像')
         
-        # 服務器列表框架
-        list_frame = ttk.LabelFrame(frame, text="可用的 MCP 服務器", padding="5")
-        list_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
-        
-        # 建立 Treeview
-        columns = ('選擇', '名稱', '分類', '描述', '映像')
-        self.server_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=15)
-        
-        # 設定欄位標題
-        self.server_tree.heading('選擇', text='選擇')
-        self.server_tree.heading('名稱', text='名稱')
-        self.server_tree.heading('分類', text='分類')
-        self.server_tree.heading('描述', text='描述')
-        self.server_tree.heading('映像', text='Docker 映像')
-        
-        # 設定欄位寬度
-        self.server_tree.column('選擇', width=50)
-        self.server_tree.column('名稱', width=100)
-        self.server_tree.column('分類', width=100)
-        self.server_tree.column('描述', width=450)
-        self.server_tree.column('映像', width=200)
-        
-        # 加入捲軸
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.server_tree.yview)
-        self.server_tree.configure(yscrollcommand=scrollbar.set)
-        
-        self.server_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        
-        # 綁定點擊事件
-        self.server_tree.bind('<Double-1>', self.toggle_server_selection)
-        self.server_tree.bind('<Button-1>', self.on_server_click)
-        
-        # 填充服務器列表
+        self.server_tree.column('selected', width=30, anchor=tk.CENTER, stretch=False)
+        self.server_tree.column('name', width=150)
+        self.server_tree.column('category', width=100)
+        self.server_tree.column('description', width=350)
+        self.server_tree.column('image', width=180)
+        self.server_tree.tag_configure('wrap', wraplength=330)
+
+        vsb = ttk.Scrollbar(server_list_lf, orient=tk.VERTICAL, command=self.server_tree.yview)
+        self.server_tree.configure(yscrollcommand=vsb.set)
+        self.server_tree.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        vsb.grid(row=1, column=1, sticky=(tk.N, tk.S))
+        self.server_tree.bind("<Double-1>", self.toggle_server_selection_event)
+        self.server_tree.bind("<Button-1>", self.on_tree_click_event)
         self.populate_server_list()
-        
-        # 配置網格權重
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(1, weight=1)
-        list_frame.columnconfigure(0, weight=1)
-        list_frame.rowconfigure(0, weight=1)
-        
-    def create_env_config_tab(self, parent):
-        """建立環境變數配置分頁"""
-        frame = ttk.Frame(parent, padding="10")
-        parent.add(frame, text="環境變數配置")
-        
-        # 說明
-        info_label = ttk.Label(frame, text="為選定的服務器配置必要的環境變數:")
-        info_label.grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
-        
-        # 建立捲動區域
-        canvas = tk.Canvas(frame)
-        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        self.env_frame = ttk.Frame(canvas)
-        
-        self.env_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=self.env_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        canvas.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        scrollbar.grid(row=1, column=1, sticky=(tk.N, tk.S))
-        
-        # 配置網格權重
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(1, weight=1)
-        
-    def create_config_generation_tab(self, parent):
-        """建立配置生成分頁"""
-        frame = ttk.Frame(parent, padding="10")
-        parent.add(frame, text="配置生成")
+
+        # 右側：環境變數配置
+        env_lf = ttk.LabelFrame(parent_frame, text="選定服務器的環境變數", padding=10)
+        env_lf.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
+        env_lf.columnconfigure(0, weight=1)
+        env_lf.rowconfigure(0, weight=1)
+
+        env_canvas = tk.Canvas(env_lf, borderwidth=0, highlightthickness=0, bg=env_lf.cget('background'))
+        env_scrollbar = ttk.Scrollbar(env_lf, orient="vertical", command=env_canvas.yview)
+        self.env_scrollable_frame = ttk.Frame(env_canvas)
+        self.env_scrollable_frame.bind("<Configure>", lambda e: env_canvas.configure(scrollregion=env_canvas.bbox("all")))
+        env_canvas.create_window((0,0), window=self.env_scrollable_frame, anchor="nw")
+        env_canvas.configure(yscrollcommand=env_scrollbar.set)
+        env_canvas.pack(side="left", fill="both", expand=True)
+        env_scrollbar.pack(side="right", fill="y")
+        self.update_env_config_display()
+
+    def create_config_generation_tab(self, parent_frame):
+        parent_frame.columnconfigure(0, weight=1)
+        parent_frame.rowconfigure(1, weight=1) # 讓 Text Area 擴展
         
         # 配置類型選擇
-        config_type_frame = ttk.LabelFrame(frame, text="配置類型", padding="5")
-        config_type_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        config_type_frame = ttk.LabelFrame(parent_frame, text="選擇配置類型", padding=10)
+        config_type_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
         
-        self.config_type = tk.StringVar(value="claude")
-        ttk.Radiobutton(config_type_frame, text="Claude Desktop", 
-                       variable=self.config_type, value="claude").grid(row=0, column=0, padx=5)
-        ttk.Radiobutton(config_type_frame, text="VS Code", 
-                       variable=self.config_type, value="vscode").grid(row=0, column=1, padx=5)
-        ttk.Radiobutton(config_type_frame, text="Docker Compose", 
-                       variable=self.config_type, value="compose").grid(row=0, column=2, padx=5)
-        ttk.Radiobutton(config_type_frame, text="Shell 腳本", 
-                       variable=self.config_type, value="shell").grid(row=0, column=3, padx=5)
-        
-        # 按鈕
-        button_frame = ttk.Frame(frame)
-        button_frame.grid(row=1, column=0, columnspan=2, pady=10)
-        
-        ttk.Button(button_frame, text="生成配置", 
-                  command=self.generate_configs).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="儲存配置", 
-                  command=self.save_config).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="複製到剪貼簿", 
-                  command=self.copy_to_clipboard).pack(side=tk.LEFT, padx=5)
+        self.config_type_var = tk.StringVar(value="claude") # 預設 claude
+        config_types = [
+            ("Claude Desktop", "claude"), 
+            ("VS Code", "vscode"), 
+            ("Docker Compose", "compose"), 
+            ("Shell 腳本", "shell")
+        ]
+        for i, (text, val) in enumerate(config_types):
+            ttk.Radiobutton(config_type_frame, text=text, variable=self.config_type_var, value=val, 
+                            command=self.generate_configs).pack(side=tk.LEFT, padx=10)
+
+        # 按鈕 (生成按鈕已整合到 Radiobutton command, 或由主按鈕觸發)
+        # ttk.Button(config_type_frame, text="生成所選類型配置", command=self.generate_configs, style='Accent.TButton').pack(side=tk.LEFT, padx=10)
         
         # 配置顯示區域
-        config_label = ttk.Label(frame, text="生成的配置:")
-        config_label.grid(row=2, column=0, sticky=tk.W, pady=(10, 5))
+        action_frame = ttk.Frame(parent_frame)
+        action_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(10,0))
+        ttk.Button(action_frame, text="💾 儲存配置", command=self.save_config).pack(side=tk.LEFT, padx=(0,10))
+        ttk.Button(action_frame, text="📋 複製到剪貼簿", command=self.copy_to_clipboard).pack(side=tk.LEFT)
+
+        self.config_text_area = scrolledtext.ScrolledText(parent_frame, height=20, width=80, relief=tk.SOLID, borderwidth=1, wrap=tk.WORD, font=('Monospaced', 9))
+        self.config_text_area.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0,10))
+        self.config_text_area.insert(tk.INSERT, "請選擇服務器並點擊上方配置類型以生成內容，或點擊主界面的「生成配置」按鈕。")
+        self.config_text_area.config(state=tk.DISABLED)
         
-        self.config_text = scrolledtext.ScrolledText(frame, height=20, width=80)
-        self.config_text.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+    def create_installation_guide_tab(self, parent_frame):
+        parent_frame.columnconfigure(0, weight=1)
+        parent_frame.rowconfigure(0, weight=1)
+        guide_text_widget = scrolledtext.ScrolledText(parent_frame, wrap=tk.WORD, relief=tk.SOLID, borderwidth=1, padx=10, pady=10, font=('Arial', 10))
+        guide_text_widget.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # 配置網格權重
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(3, weight=1)
-        
-    def create_installation_guide_tab(self, parent):
-        """建立安裝指南分頁"""
-        frame = ttk.Frame(parent, padding="10")
-        parent.add(frame, text="安裝指南")
-        
-        # 指南內容
-        guide_text = scrolledtext.ScrolledText(frame, height=25, width=90, wrap=tk.WORD)
-        guide_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # 加入安裝指南內容
         guide_content = """
-MCP Docker 安裝指南
+        MCP Docker 安裝器 - 快速指南
 
-1. 準備工作
-   • 確保已安裝 Docker Desktop
-   • 確保 Docker 服務正在運行
-   • 準備必要的 API 金鑰和環境變數
+        1.  **準備工作**：
+            *   確保已安裝 Docker Desktop 且正在運行。
+            *   準備好所選服務器可能需要的 API 金鑰或環境變數值。
 
-2. 使用本工具的步驟
-   a) 在「服務器選擇」分頁中選擇需要的 MCP 服務器
-   b) 在「環境變數配置」分頁中設定必要的環境變數
-   c) 在「配置生成」分頁中選擇配置類型並生成配置
-   d) 將生成的配置複製或儲存到對應位置
+        2.  **使用本工具**：
+            a)  在「選擇服務器與配置環境變數」分頁：
+                *   從左側列表中選擇您需要的 MCP 服務器 (可複選)。
+                *   在右側為選中的服務器填寫必要的環境變數。
+            b)  在「生成配置與腳本」分頁：
+                *   選擇您想要的配置類型 (Claude, VS Code, Docker Compose, Shell)。
+                *   配置內容會自動顯示在文本框中。
+                *   您可以「儲存配置」到檔案或「複製到剪貼簿」。
+            c)  點擊主界面下方的「📥 安裝選定服務器」按鈕，工具將使用 `docker pull` 命令拉取選定服務器的最新映像。
 
-3. Claude Desktop 配置位置
-   • macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
-   • Windows: %APPDATA%/Claude/claude_desktop_config.json
-   • Linux: ~/.config/Claude/claude_desktop_config.json
+        3.  **配置檔案參考位置**：
+            *   **Claude Desktop**: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
+            *   **VS Code**: 在您的專案根目錄下建立 `.vscode/mcp.json`
+            *   **Docker Compose**: 將 `docker-compose.yml` 儲存到專案目錄，然後執行 `docker-compose up -d`。
+            *   **Shell 腳本**: 儲存為 `.sh` 檔案，賦予執行權限 (`chmod +x`) 後執行。
 
-4. VS Code 配置
-   • 在專案根目錄建立 .vscode/mcp.json 檔案
-   • 將生成的配置內容貼上
-   • 重新啟動 VS Code
+        4.  **常用 Docker 指令**：
+            *   查看運行容器: `docker ps`
+            *   停止容器: `docker stop <container_name_or_id>`
+            *   查看日誌: `docker logs <container_name_or_id>`
 
-5. Docker Compose 使用
-   • 將生成的 docker-compose.yml 儲存到專案目錄
-   • 執行: docker-compose up -d
-
-6. 常用 Docker 指令
-   • 查看運行中的容器: docker ps
-   • 停止容器: docker stop <container_name>
-   • 查看日誌: docker logs <container_name>
-   • 清理未使用的映像: docker image prune
-
-7. 故障排除
-   • 檢查 Docker 狀態: docker info
-   • 檢查容器狀態: docker ps -a
-   • 查看容器日誌: docker logs <container_name>
-   • 測試網路連接: docker run --rm -it alpine ping google.com
-
-8. 安全建議
-   • 使用環境變數而非硬編碼敏感資訊
-   • 定期更新 Docker 映像
-   • 限制容器資源使用
-   • 使用非 root 使用者運行容器
-
-9. 效能最佳化
-   • 使用 .dockerignore 減少映像大小
-   • 啟用 Docker BuildKit
-   • 使用多階段構建
-   • 配置適當的資源限制
-
-10. 相關資源
-    • MCP 官方文檔: https://modelcontextprotocol.io
-    • Docker Hub MCP: https://hub.docker.com/u/mcp
-    • Docker 官方文檔: https://docs.docker.com
+        詳細資訊請參考專案的 README.md 檔案。
         """
-        
-        guide_text.insert(tk.INSERT, guide_content)
-        guide_text.config(state=tk.DISABLED)
-        
-        # 配置網格權重
-        frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(0, weight=1)
+        guide_text_widget.insert(tk.INSERT, guide_content)
+        guide_text_widget.config(state=tk.DISABLED)
+
+    def update_status_bar(self, message):
+        self.status_var.set(message)
+        self.root.update_idletasks()
         
     def populate_server_list(self):
-        """填充服務器列表"""
         for item in self.server_tree.get_children():
             self.server_tree.delete(item)
             
-        category_filter = self.category_var.get() if hasattr(self, 'category_var') else "全部"
-        search_term = self.search_var.get().lower() if hasattr(self, 'search_var') else ""
+        category_filter = self.category_var.get()
+        search_term = self.search_var.get().lower()
         
         for server_id, info in self.mcp_servers.items():
-            # 應用篩選
             if category_filter != "全部" and info.get("category") != category_filter:
                 continue
-            if search_term and not any(search_term in text.lower() for text in [
-                server_id, info.get("name", ""), info.get("description", ""), info.get("category", ""), info.get("popularity", "")
-            ]):
+            
+            name_lower = info.get("name", "").lower()
+            desc_lower = info.get("description", "").lower()
+            cat_lower = info.get("category", "").lower()
+            pop_lower = info.get("popularity", "").lower()
+            use_cases_lower = " ".join(info.get("use_cases", [])).lower()
+
+            if search_term and not (
+                search_term in server_id.lower() or 
+                search_term in name_lower or 
+                search_term in desc_lower or 
+                search_term in cat_lower or 
+                search_term in pop_lower or
+                search_term in use_cases_lower
+            ):
                 continue
                 
-            # 檢查是否已選擇
-            selected = "✓" if server_id in self.selected_servers else ""
-            popularity_indicator = f" ({info.get('popularity', 'N/A')})"
-            use_cases_str = "\n應用: " + ", ".join(info.get("use_cases", []))
-            description_with_details = f"{info.get('description', '')}{use_cases_str}"
+            selected_char = "✔" if server_id in self.selected_servers else "▫"
+            popularity_str = f" ({info.get('popularity', 'N/A')})"
             
+            description_display = info.get('description', '')
+            use_cases_display = ", ".join(info.get("use_cases", []))
+            if use_cases_display:
+                description_display += f"\n應用: {use_cases_display}"
+            
+            item_tags = ('wrap',)
             self.server_tree.insert("", tk.END, iid=server_id, values=(
-                selected, 
-                info.get("name", "N/A") + popularity_indicator, 
+                selected_char, 
+                info.get("name", "N/A") + popularity_str, 
                 info.get("category", "N/A"), 
-                description_with_details, 
+                description_display, 
                 info.get("image", "N/A")
-            ))
+            ), tags=item_tags)
+        self.update_status_bar(f"顯示 {len(self.server_tree.get_children())} 個服務器")
             
     def filter_servers(self, event=None):
-        """篩選服務器列表"""
         self.populate_server_list()
         
-    def toggle_server_selection(self, event):
-        """切換服務器選擇狀態"""
-        item = self.server_tree.selection()[0]
-        if item in self.selected_servers:
-            del self.selected_servers[item]
-        else:
-            self.selected_servers[item] = self.mcp_servers[item]
-        
-        self.populate_server_list()
-        self.update_env_config()
-        
-    def on_server_click(self, event):
-        """處理服務器點擊事件"""
+    def toggle_server_selection_event(self, event):
+        item_id = self.server_tree.identify_row(event.y)
+        if item_id:
+            self.toggle_selection(item_id)
+
+    def on_tree_click_event(self, event):
         region = self.server_tree.identify("region", event.x, event.y)
         if region == "cell":
-            column = self.server_tree.identify_column(event.x, event.y)
-            if column == "#1":  # 選擇欄位
-                item = self.server_tree.identify_row(event.y)
-                if item:
-                    self.toggle_server_selection(event)
-                    
-    def update_env_config(self):
-        """更新環境變數配置介面"""
-        # 清除現有的環境變數輸入框
-        for widget in self.env_frame.winfo_children():
+            column = self.server_tree.identify_column(event.x)
+            if column == "#1": 
+                item_id = self.server_tree.identify_row(event.y)
+                if item_id:
+                    self.toggle_selection(item_id)
+    
+    def toggle_selection(self, server_id):
+        if server_id in self.selected_servers:
+            del self.selected_servers[server_id]
+        else:
+            self.selected_servers[server_id] = self.mcp_servers[server_id]
+        self.populate_server_list() 
+        self.update_env_config_display()
+        self.generate_configs() # Selection change should also trigger re-generation if a type is selected
+        self.update_status_bar(f"{len(self.selected_servers)} 個服務器已選擇")
+
+    def update_env_config_display(self):
+        for widget in self.env_scrollable_frame.winfo_children():
             widget.destroy()
-        
         self.env_entries.clear()
         
-        row = 0
         if not self.selected_servers:
-            no_selection_label = ttk.Label(self.env_frame, text="請先在「服務器選擇」分頁中選擇 MCP 服務器")
-            no_selection_label.grid(row=0, column=0, columnspan=2, pady=20)
+            ttk.Label(self.env_scrollable_frame, text="← 請先在左側選擇服務器", 
+                      font=('Arial', 11, 'italic'), padding=(10,20)).pack(anchor=tk.CENTER, pady=20)
             return
 
-        for server_name, server_data_ref in self.selected_servers.items():
-            # 從 self.mcp_servers 獲取完整的伺服器資訊
-            server_info = self.mcp_servers.get(server_name)
-            if not server_info: continue
+        container_frame = ttk.Frame(self.env_scrollable_frame)
+        container_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-            if server_info.get("env_vars"):
-                # 服務器標題
-                server_label = ttk.Label(self.env_frame, text=f"{server_info.get('name', server_name)} ({server_info.get('image', 'N/A')})", 
-                                       font=('TkDefaultFont', 10, 'bold'))
-                server_label.grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=(10, 5))
-                row += 1
-                
-                # 環境變數輸入框
-                for env_var in server_info.get("env_vars", []):
-                    ttk.Label(self.env_frame, text=f"{env_var}:").grid(row=row, column=0, sticky=tk.W, padx=(20, 5))
-                    
-                    entry = ttk.Entry(self.env_frame, width=50, show="*" if "token" in env_var.lower() or "key" in env_var.lower() else None)
-                    entry.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=5)
-                    
-                    self.env_entries[f"{server_name}.{env_var}"] = entry
-                    row += 1
-                    
-        if not self.selected_servers:
-            no_selection_label = ttk.Label(self.env_frame, text="請先在「服務器選擇」分頁中選擇 MCP 服務器")
-            no_selection_label.grid(row=0, column=0, columnspan=2, pady=20)
+        for server_id in self.selected_servers:
+            server_info = self.mcp_servers.get(server_id)
+            if not server_info or not server_info.get("env_vars"):
+                continue
+            
+            server_lf = ttk.LabelFrame(container_frame, text=f"🔧 {server_info.get('name')} ({server_info.get('image')})", padding=10)
+            server_lf.pack(fill=tk.X, expand=True, pady=(0,10))
+            # server_lf.columnconfigure(1, weight=1)
+
+            for i, env_var in enumerate(server_info.get("env_vars", [])):
+                ttk.Label(server_lf, text=f"{env_var}:").grid(row=i, column=0, sticky=tk.W, padx=5, pady=3)
+                is_sensitive = "token" in env_var.lower() or "key" in env_var.lower() or "secret" in env_var.lower()
+                entry = ttk.Entry(server_lf, width=45, show="*" if is_sensitive else None, font=('Arial', 10))
+                entry.grid(row=i, column=1, sticky=tk.EW, padx=5, pady=3)
+                server_lf.columnconfigure(1, weight=1) # Make entry expand
+                self.env_entries[f"{server_id}.{env_var}"] = entry
+        
+        if not self.env_entries and self.selected_servers: # Selected servers but none need env vars
+             ttk.Label(self.env_scrollable_frame, text="選定的服務器無需額外環境變數", 
+                      font=('Arial', 11, 'italic'), padding=(10,20)).pack(anchor=tk.CENTER, pady=20)
             
     def generate_configs(self):
-        """生成配置檔案"""
         if not self.selected_servers:
-            messagebox.showwarning("警告", "請先選擇至少一個 MCP 服務器")
+            self.config_text_area.config(state=tk.NORMAL)
+            self.config_text_area.delete(1.0, tk.END)
+            self.config_text_area.insert(tk.INSERT, "請先選擇至少一個 MCP 服務器，然後選擇配置類型。")
+            self.config_text_area.config(state=tk.DISABLED)
+            self.update_status_bar("未選擇服務器")
             return
             
-        config_type = self.config_type.get()
+        config_type = self.config_type_var.get()
+        config_str = ""
         
         if config_type == "claude":
-            config = self.generate_claude_config()
+            config_str = self._generate_claude_or_vscode_config(is_vscode=False)
         elif config_type == "vscode":
-            config = self.generate_vscode_config()
+            config_str = self._generate_claude_or_vscode_config(is_vscode=True)
         elif config_type == "compose":
-            config = self.generate_compose_config()
+            config_str = self._generate_compose_config()
         elif config_type == "shell":
-            config = self.generate_shell_config()
+            config_str = self._generate_shell_config()
         else:
-            config = "未知的配置類型"
+            config_str = "錯誤：未知的配置類型。"
             
-        self.config_text.delete(1.0, tk.END)
-        self.config_text.insert(tk.INSERT, config)
-        
-        self.status_var.set(f"已生成 {config_type} 配置")
-        
-    def generate_claude_config(self):
-        """生成 Claude Desktop 配置"""
-        config = {
-            "mcpServers": {}
-        }
-        
-        for server_name, server_info in self.selected_servers.items():
-            server_config = {
-                "command": "docker",
-                "args": ["run", "-i", "--rm"]
-            }
-            
-            # 加入環境變數
-            env_vars = {}
-            for env_var in server_info["env_vars"]:
-                key = f"{server_name}.{env_var}"
-                if key in self.env_entries:
-                    value = self.env_entries[key].get()
-                    if value:
-                        server_config["args"].extend(["-e", env_var])
-                        env_vars[env_var] = value
-                        
-            # 加入映像名稱
-            server_config["args"].append(server_info["image"])
-            
-            if env_vars:
-                server_config["env"] = env_vars
-                
-            config["mcpServers"][server_name] = server_config
-            
-        return json.dumps(config, indent=2, ensure_ascii=False)
-        
-    def generate_vscode_config(self):
-        """生成 VS Code 配置"""
-        inputs = []
-        servers = {}
-        
-        # 收集所有需要的輸入
-        for server_name, server_info in self.selected_servers.items():
-            for env_var in server_info["env_vars"]:
-                input_id = f"{server_name}_{env_var.lower()}"
-                inputs.append({
-                    "type": "promptString",
+        self.config_text_area.config(state=tk.NORMAL)
+        self.config_text_area.delete(1.0, tk.END)
+        self.config_text_area.insert(tk.INSERT, config_str)
+        self.config_text_area.config(state=tk.DISABLED)
+        self.update_status_bar(f"已生成 {config_type} 配置")
+
+    def _generate_claude_or_vscode_config(self, is_vscode=False):
+        # Common logic for Claude Desktop and VS Code style configs
+        base_config = {"mcpServers": {}}
+        if is_vscode:
+            base_config["inputs"] = []
+        processed_inputs = set() # For VSCode to avoid duplicate input prompts
+
+        for server_id, server_data_ref in self.selected_servers.items():
+            server_info = self.mcp_servers.get(server_id)
+            if not server_info: continue
+
+            image_name = server_info.get("image", server_id)
+            server_config_args = ["run", "-i", "--rm"]
+            env_vars_for_mcp_env = {}
+
+            for env_var_name in server_info.get("env_vars", []):
+                server_config_args.extend(["-e", env_var_name])
+                if is_vscode:
+                    input_id = f"mcp.{server_id}.{env_var_name}" 
+                    if input_id not in processed_inputs:
+                        base_config["inputs"].append({
                     "id": input_id,
-                    "description": f"{server_name} {env_var}",
-                    "password": "token" in env_var.lower() or "key" in env_var.lower()
-                })
-                
-        # 生成服務器配置
-        for server_name, server_info in self.selected_servers.items():
-            server_config = {
-                "command": "docker",
-                "args": ["run", "-i", "--rm"]
-            }
+                            "type": "promptString",
+                            "description": f"Enter {env_var_name} for {server_info.get('name')}",
+                            "password": "token" in env_var_name.lower() or "key" in env_var_name.lower() or "secret" in env_var_name.lower()
+                        })
+                        processed_inputs.add(input_id)
+                    env_vars_for_mcp_env[env_var_name] = f"${{input:{input_id}}}"
+                else: # Claude Desktop
+                    key = f"{server_id}.{env_var_name}"
+                    value = self.env_entries.get(key, tk.Entry()).get()
+                    if value:
+                        env_vars_for_mcp_env[env_var_name] = value
             
-            env_vars = {}
-            for env_var in server_info["env_vars"]:
-                input_id = f"{server_name}_{env_var.lower()}"
-                server_config["args"].extend(["-e", env_var])
-                env_vars[env_var] = f"${{input:{input_id}}}"
-                
-            server_config["args"].append(server_info["image"])
-            
-            if env_vars:
-                server_config["env"] = env_vars
-                
-            servers[server_name] = server_config
-            
-        config = {
-            "inputs": inputs,
-            "servers": servers
-        }
+            server_config_args.append(image_name)
+            # Note: This simplified version doesn't handle SSE or custom ports like the advanced configurator
+            # It assumes stdio transport for Claude/VSCode.
+
+            mcp_server_entry = {"command": "docker", "args": server_config_args}
+            if env_vars_for_mcp_env:
+                 mcp_server_entry["env"] = env_vars_for_mcp_env
+            base_config["mcpServers"][server_id] = mcp_server_entry
         
-        return json.dumps(config, indent=2, ensure_ascii=False)
-        
-    def generate_compose_config(self):
-        """生成 Docker Compose 配置"""
-        config = {
-            "version": "3.8",
-            "services": {}
-        }
-        
-        for server_name, server_info in self.selected_servers.items():
-            service_config = {
-                "image": server_info["image"],
+        return json.dumps(base_config, indent=2, ensure_ascii=False)
+
+    def _generate_compose_config(self):
+        compose_config = {"version": "3.8", "services": {}}
+        for server_id, server_data_ref in self.selected_servers.items():
+            server_info = self.mcp_servers.get(server_id)
+            if not server_info: continue
+            image_name = server_info.get("image", server_id)
+            service_name = f"mcp-{server_id}"
+
+            service_def = {
+                "image": image_name,
                 "stdin_open": True,
                 "tty": True,
                 "restart": "unless-stopped"
             }
-            
-            # 加入環境變數
-            env_vars = []
-            for env_var in server_info["env_vars"]:
-                key = f"{server_name}.{env_var}"
-                if key in self.env_entries:
-                    value = self.env_entries[key].get()
-                    if value:
-                        env_vars.append(f"{env_var}={value}")
-                    else:
-                        env_vars.append(f"{env_var}=${{{env_var}}}")
+            environment = []
+            for env_var_name in server_info.get("env_vars", []):
+                key = f"{server_id}.{env_var_name}"
+                value = self.env_entries.get(key, tk.Entry()).get()
+                if value:
+                    environment.append(f"{env_var_name}={value}")
                 else:
-                    env_vars.append(f"{env_var}=${{{env_var}}}")
-                        
-            if env_vars:
-                service_config["environment"] = env_vars
-                
-            # 加入端口映射
-            if server_info["ports"]:
-                service_config["ports"] = [f"{port}:{port}" for port in server_info["ports"]]
-                
-            config["services"][f"{server_name}-mcp"] = service_config
+                    environment.append(env_var_name) # Expect .env file or shell env
+            if environment: service_def["environment"] = environment
             
-        # 使用 YAML 格式輸出
+            ports_to_map = []
+            for p_str in server_info.get("ports", []):
+                ports_to_map.append(f"{p_str}:{p_str}")
+            if ports_to_map: service_def["ports"] = list(set(ports_to_map))
+
+            compose_config["services"][service_name] = service_def
         try:
-            import yaml
-            return yaml.dump(config, default_flow_style=False, allow_unicode=True)
-        except ImportError:
-            # 如果沒有 PyYAML，使用簡單的字串格式
-            yaml_str = "version: '3.8'\nservices:\n"
-            for service_name, service_config in config["services"].items():
-                yaml_str += f"  {service_name}:\n"
-                yaml_str += f"    image: {service_config['image']}\n"
-                yaml_str += f"    stdin_open: {service_config['stdin_open']}\n"
-                yaml_str += f"    tty: {service_config['tty']}\n"
-                yaml_str += f"    restart: {service_config['restart']}\n"
-                if "environment" in service_config:
-                    yaml_str += "    environment:\n"
-                    for env in service_config["environment"]:
-                        yaml_str += f"      - {env}\n"
-                if "ports" in service_config:
-                    yaml_str += "    ports:\n"
-                    for port in service_config["ports"]:
-                        yaml_str += f"      - '{port}'\n"
-                yaml_str += "\n"
-            return yaml_str
-        
-    def generate_shell_config(self):
-        """生成 Shell 腳本配置"""
+            return yaml.dump(compose_config, sort_keys=False, allow_unicode=True, indent=2)
+        except NameError: # PyYAML not installed
+             return "# PyYAML not installed. Cannot generate YAML.\n" + json.dumps(compose_config, indent=2)
+        except Exception as e:
+            return f"# Error generating YAML: {e}\n{json.dumps(compose_config, indent=2)}" 
+
+    def _generate_shell_config(self):
         script = "#!/bin/bash\n"
-        script += "# MCP Docker 服務器啟動腳本\n"
-        script += f"# 生成時間: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        
-        script += "# 檢查 Docker 是否運行\n"
-        script += "if ! docker info >/dev/null 2>&1; then\n"
-        script += "    echo \"錯誤: Docker 未運行或無法存取\"\n"
+        script += "# MCP Docker Server Startup Script (Generated by MCP Installer GUI)\n"
+        script += f"# Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        script += "echo \"Checking Docker...\"\n"
+        script += "if ! docker info > /dev/null 2>&1; then\n"
+        script += "    echo \"Error: Docker is not running or accessible. Please start Docker and try again.\"\n"
         script += "    exit 1\n"
         script += "fi\n\n"
         
-        script += "# 設定環境變數\n"
-        for server_name, server_info in self.selected_servers.items():
-            for env_var in server_info["env_vars"]:
-                key = f"{server_name}.{env_var}"
-                if key in self.env_entries:
-                    value = self.env_entries[key].get()
-                    if value:
-                        script += f'export {env_var}="{value}"\n'
-                    else:
-                        script += f'# export {env_var}="your_value_here"\n'
-        script += "\n"
-        
-        script += "# 啟動 MCP 服務器\n"
-        for server_name, server_info in self.selected_servers.items():
-            script += f"# 啟動 {server_name}\n"
-            cmd = f"docker run -d --name {server_name}-mcp"
+        # Environment variable setup section (guidance for user)
+        script += "# --- Environment Variables (Ensure these are set in your shell or .env file if not hardcoded) ---\n"
+        unique_env_vars_to_mention = set()
+        for server_id in self.selected_servers:
+            server_info = self.mcp_servers.get(server_id)
+            if server_info and server_info.get("env_vars"):
+                for env_var_name in server_info.get("env_vars"):
+                    key = f"{server_id}.{env_var_name}"
+                    value = self.env_entries.get(key, tk.Entry()).get()
+                    if value: # If value provided in GUI, export it
+                        script += f'export {env_var_name}="{value}" # Value from GUI\n'
+                    else: # Otherwise, add a placeholder for user to fill
+                        if env_var_name not in unique_env_vars_to_mention:
+                            script += f'# export {env_var_name}="YOUR_{env_var_name}_HERE"\n'
+                            unique_env_vars_to_mention.add(env_var_name)
+        script += "# ---------------------------------------------------------------------------------------------\n\n"
+
+        script += "echo \"Starting selected MCP Docker servers...\"\n"
+        for server_id in self.selected_servers:
+            server_info = self.mcp_servers.get(server_id)
+            if not server_info: continue
+            image_name = server_info.get("image", server_id)
+            container_name = f"mcp-{server_id}-shell"
+
+            script += f"\necho \"\nStarting {server_info.get('name')} ({image_name})...\"\n"
+            script += f"docker rm -f {container_name} > /dev/null 2>&1 # Remove if already exists\n"
             
-            # 加入環境變數
-            for env_var in server_info["env_vars"]:
-                cmd += f" -e {env_var}"
-                
-            # 加入端口映射
-            for port in server_info["ports"]:
-                cmd += f" -p {port}:{port}"
-                
-            cmd += f" {server_info['image']}"
-            script += cmd + "\n"
-            script += f'echo "{server_name} MCP 服務器已啟動"\n\n'
-            
-        script += "echo \"所有 MCP 服務器已啟動\"\n"
-        script += "echo \"使用 'docker ps' 查看運行狀態\"\n"
-        
+            cmd_parts = ["docker run -d --name", container_name]
+            for env_var_name in server_info.get("env_vars", []):
+                 cmd_parts.append(f'-e {env_var_name}') # Assumes env var is set in shell
+            for p_str in server_info.get("ports", []):
+                cmd_parts.append(f'-p {p_str}:{p_str}')
+            cmd_parts.append(image_name)
+            script += " ".join(cmd_parts) + "\n"
+            script += f"if [ $? -eq 0 ]; then echo \"✓ {server_info.get('name')} started successfully as {container_name}\"; else echo \"✗ Failed to start {server_info.get('name')}\"; fi\n"
+
+        script += "\n\necho \"\nAll selected server startup attempts complete.\"\n"
+        script += "echo \"Use 'docker ps' to check running containers and 'docker logs <container_name>' for logs.\"\n"
         return script
         
     def save_config(self):
-        """儲存配置到檔案"""
-        config_type = self.config_type.get()
-        
-        # 設定檔案類型和副檔名
-        file_types = {
-            "claude": ("Claude 配置檔案", "*.json"),
-            "vscode": ("VS Code 配置檔案", "*.json"),
-            "compose": ("Docker Compose 檔案", "*.yml"),
-            "shell": ("Shell 腳本", "*.sh")
-        }
-        
-        default_names = {
+        config_content = self.config_text_area.get(1.0, tk.END).strip()
+        if not config_content or config_content.startswith("請先選擇") or config_content.startswith("錯誤"):
+            messagebox.showwarning("無內容", "沒有有效的配置內容可以儲存。", parent=self.root)
+            return
+
+        config_type = self.config_type_var.get()
+        file_ext_map = {"claude": ".json", "vscode": ".json", "compose": ".yml", "shell": ".sh"}
+        default_name_map = {
             "claude": "claude_desktop_config.json",
             "vscode": "mcp.json",
             "compose": "docker-compose.yml",
             "shell": "start_mcp_servers.sh"
         }
+        file_ext = file_ext_map.get(config_type, ".txt")
+        default_filename = default_name_map.get(config_type, "mcp_config.txt")
         
-        file_type = file_types.get(config_type, ("文字檔案", "*.txt"))
-        default_name = default_names.get(config_type, "config.txt")
-        
-        filename = filedialog.asksaveasfilename(
-            defaultextension=file_type[1][1:],
-            filetypes=[file_type, ("所有檔案", "*.*")],
-            initialname=default_name
+        filetypes = [("JSON", "*.json"), ("YAML", "*.yml"), ("Shell Script", "*.sh"), ("Text", "*.txt"), ("All Files", "*.*")]
+        if config_type == "compose":
+            current_filetypes = [("YAML", "*.yml"), ("All Files", "*.*")]
+        elif config_type == "shell":
+            current_filetypes = [("Shell Script", "*.sh"), ("All Files", "*.*")]
+        elif config_type in ["claude", "vscode"]:
+             current_filetypes = [("JSON", "*.json"), ("All Files", "*.*")]
+        else:
+            current_filetypes = filetypes
+
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=file_ext,
+            initialfile=default_filename,
+            filetypes=current_filetypes,
+            title=f"儲存 {config_type.capitalize()} 配置"
         )
-        
-        if filename:
+        if filepath:
             try:
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(self.config_text.get(1.0, tk.END))
-                messagebox.showinfo("成功", f"配置已儲存到: {filename}")
-                self.status_var.set(f"配置已儲存到: {os.path.basename(filename)}")
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    f.write(config_content)
+                self.update_status_bar(f"配置已儲存到 {os.path.basename(filepath)}")
+                messagebox.showinfo("成功", f"{config_type.capitalize()} 配置已儲存到:\n{filepath}", parent=self.root)
             except Exception as e:
-                messagebox.showerror("錯誤", f"儲存檔案時發生錯誤:\n{str(e)}")
+                messagebox.showerror("儲存失敗", f"無法儲存檔案: {e}", parent=self.root)
                 
     def copy_to_clipboard(self):
-        """複製配置到剪貼簿"""
-        self.root.clipboard_clear()
-        self.root.clipboard_append(self.config_text.get(1.0, tk.END))
-        messagebox.showinfo("成功", "配置已複製到剪貼簿")
-        self.status_var.set("配置已複製到剪貼簿")
+        config_content = self.config_text_area.get(1.0, tk.END).strip()
+        if not config_content or config_content.startswith("請先選擇") or config_content.startswith("錯誤"):
+            messagebox.showwarning("無內容", "沒有有效的配置內容可以複製。", parent=self.root)
+            return
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(config_content)
+            self.update_status_bar("配置已複製到剪貼簿。")
+            messagebox.showinfo("成功", "目前生成的配置已複製到剪貼簿！", parent=self.root)
+        except Exception as e:
+            messagebox.showerror("複製失敗", f"無法複製到剪貼簿: {e}", parent=self.root)
         
     def check_docker(self):
-        """檢查 Docker 狀態"""
+        self.update_status_bar("正在檢查 Docker 狀態...")
+        # (和 Configurator 中相同的檢查邏輯)
         try:
-            result = subprocess.run(["docker", "--version"], 
-                                  capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                version = result.stdout.strip()
-                
-                # 檢查 Docker 是否運行
-                result2 = subprocess.run(["docker", "info"], 
-                                       capture_output=True, text=True, timeout=10)
-                if result2.returncode == 0:
-                    messagebox.showinfo("Docker 狀態", f"Docker 正常運行\n{version}")
-                    self.status_var.set("Docker 正常運行")
-                else:
-                    messagebox.showwarning("Docker 狀態", 
-                                         f"Docker 已安裝但未運行\n{version}\n\n請啟動 Docker Desktop")
-                    self.status_var.set("Docker 未運行")
+            version_result = subprocess.run(["docker", "--version"], capture_output=True, text=True, timeout=5, check=False)
+            info_result = subprocess.run(["docker", "info"], capture_output=True, text=True, timeout=10, check=False)
+            if version_result.returncode == 0 and info_result.returncode == 0:
+                messagebox.showinfo("Docker 狀態", f"Docker 正常運行 ({version_result.stdout.strip()})", parent=self.root)
+                self.update_status_bar("Docker 正常運行")
+            elif version_result.returncode != 0:
+                messagebox.showerror("Docker 錯誤", "找不到 Docker。請安裝並確保在 PATH 中。", parent=self.root)
+                self.update_status_bar("Docker 未安裝或 PATH 配置錯誤")
             else:
-                messagebox.showerror("Docker 狀態", "Docker 未安裝或無法存取")
-                self.status_var.set("Docker 未安裝")
-        except subprocess.TimeoutExpired:
-            messagebox.showerror("錯誤", "檢查 Docker 狀態超時")
-            self.status_var.set("檢查 Docker 超時")
-        except FileNotFoundError:
-            messagebox.showerror("錯誤", "找不到 Docker 指令\n請確認 Docker 已安裝並加入到 PATH")
-            self.status_var.set("找不到 Docker")
+                messagebox.showwarning("Docker 警告", "Docker Engine 未運行。請啟動 Docker Desktop。", parent=self.root)
+                self.update_status_bar("Docker Engine 未運行")
         except Exception as e:
-            messagebox.showerror("錯誤", f"檢查 Docker 時發生錯誤:\n{str(e)}")
-            self.status_var.set("檢查 Docker 錯誤")
+            messagebox.showerror("檢查錯誤", f"檢查 Docker 時發生錯誤: {e}", parent=self.root)
+            self.update_status_bar("檢查 Docker 錯誤")
             
     def install_servers(self):
-        """安裝選定的服務器"""
         if not self.selected_servers:
-            messagebox.showwarning("警告", "請先選擇至少一個 MCP 服務器")
+            messagebox.showwarning("無選擇", "請先選擇要安裝的 MCP 服務器映像。", parent=self.root)
+            return
+        server_list_str = "\n".join([f"- {self.mcp_servers[s_id].get('name')} ({self.mcp_servers[s_id].get('image')})" 
+                                    for s_id in self.selected_servers])
+        if not messagebox.askyesno("確認安裝", f"即將拉取以下 Docker 映像：\n{server_list_str}\n\n是否繼續？", parent=self.root):
             return
             
-        # 確認安裝
-        server_list = "\n".join([f"• {name} ({info['image']})" 
-                                for name, info in self.selected_servers.items()])
+        self.update_status_bar("開始安裝服務器映像...")
+        progress_popup = tk.Toplevel(self.root)
+        # (和 Configurator 中類似的進度彈窗邏輯)
+        progress_popup.title("安裝進度")
+        progress_popup.geometry("500x350")
+        progress_popup.transient(self.root)
+        progress_popup.grab_set()
+        ttk.Label(progress_popup, text="正在拉取映像...", font=('Arial', 12)).pack(pady=10)
+        log_area = scrolledtext.ScrolledText(progress_popup, height=15, width=60, wrap=tk.WORD)
+        log_area.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+        log_area.insert(tk.END, "開始拉取...\n")
+        log_area.config(state=tk.DISABLED)
+        self.root.update_idletasks()
         
-        if not messagebox.askyesno("確認安裝", 
-                                  f"即將拉取以下 Docker 映像:\n\n{server_list}\n\n是否繼續?"):
-            return
-            
-        # 建立進度視窗
-        progress_window = tk.Toplevel(self.root)
-        progress_window.title("安裝進度")
-        progress_window.geometry("400x200")
-        progress_window.transient(self.root)
-        progress_window.grab_set()
-        
-        progress_label = ttk.Label(progress_window, text="準備安裝...")
-        progress_label.pack(pady=10)
-        
-        progress_bar = ttk.Progressbar(progress_window, mode='determinate', 
-                                     maximum=len(self.selected_servers))
-        progress_bar.pack(pady=10, padx=20, fill=tk.X)
-        
-        log_text = scrolledtext.ScrolledText(progress_window, height=8, width=50)
-        log_text.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
-        
-        def install_worker():
-            """在背景執行安裝作業"""
-            success_count = 0
-            
-            for i, (name, info) in enumerate(self.selected_servers.items()):
-                progress_label.config(text=f"正在安裝 {name}...")
-                log_text.insert(tk.END, f"拉取 {info['image']}...\n")
-                log_text.see(tk.END)
-                progress_window.update()
-                
-                try:
-                    result = subprocess.run(
-                        ["docker", "pull", info['image']], 
-                        capture_output=True, text=True, timeout=300
-                    )
-                    
-                    if result.returncode == 0:
-                        log_text.insert(tk.END, f"✓ {name} 安裝成功\n")
-                        success_count += 1
-                    else:
-                        log_text.insert(tk.END, f"✗ {name} 安裝失敗: {result.stderr}\n")
-                        
-                except subprocess.TimeoutExpired:
-                    log_text.insert(tk.END, f"✗ {name} 安裝超時\n")
-                except Exception as e:
-                    log_text.insert(tk.END, f"✗ {name} 安裝錯誤: {str(e)}\n")
-                    
-                progress_bar['value'] = i + 1
-                log_text.see(tk.END)
-                progress_window.update()
-                
-            # 完成
-            progress_label.config(text=f"安裝完成! 成功: {success_count}/{len(self.selected_servers)}")
-            
-            close_button = ttk.Button(progress_window, text="關閉", 
-                                    command=progress_window.destroy)
-            close_button.pack(pady=10)
-            
-            self.status_var.set(f"安裝完成: {success_count}/{len(self.selected_servers)} 成功")
-            
-        # 在主執行緒中執行安裝（簡化版本）
-        self.root.after(100, install_worker)
+        installed_count, failed_count = 0,0
+        total_servers = len(self.selected_servers)
+        for i, server_id in enumerate(self.selected_servers.keys()):
+            server_info = self.mcp_servers[server_id]
+            image_to_pull = server_info.get("image")
+            log_area.config(state=tk.NORMAL)
+            log_area.insert(tk.END, f"\n[{i+1}/{total_servers}] 拉取 {server_info.get('name')} ({image_to_pull})...\n")
+            log_area.see(tk.END)
+            log_area.config(state=tk.DISABLED)
+            progress_popup.update()
+            try:
+                process = subprocess.Popen(["docker", "pull", image_to_pull], 
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
+                for line in process.stdout: # Stream output
+                    log_area.config(state=tk.NORMAL); log_area.insert(tk.END, line); log_area.see(tk.END); 
+                    log_area.config(state=tk.DISABLED); progress_popup.update()
+                process.wait()
+                if process.returncode == 0:
+                    log_area.config(state=tk.NORMAL); log_area.insert(tk.END, f"✓ {server_info.get('name')} 拉取成功！\n"); installed_count += 1
+                else:
+                    log_area.config(state=tk.NORMAL); log_area.insert(tk.END, f"✗ {server_info.get('name')} 拉取失敗 (碼: {process.returncode})\n"); failed_count += 1
+            except Exception as e:
+                log_area.config(state=tk.NORMAL); log_area.insert(tk.END, f"✗ 拉取 {server_info.get('name')} 錯誤: {e}\n"); failed_count += 1
+            finally:
+                log_area.see(tk.END); log_area.config(state=tk.DISABLED); progress_popup.update()
+        final_msg = f"安裝完成！成功: {installed_count}, 失敗: {failed_count}"
+        log_area.config(state=tk.NORMAL); log_area.insert(tk.END, f"\n{final_msg}\n"); log_area.config(state=tk.DISABLED)
+        self.update_status_bar(final_msg)
+        ttk.Button(progress_popup, text="關閉", command=progress_popup.destroy).pack(pady=10)
+        progress_popup.grab_release()
         
     def clear_all(self):
-        """清除所有選擇"""
-        if messagebox.askyesno("確認清除", "是否清除所有選擇和配置?"):
+        if messagebox.askyesno("確認清除", "是否清除所有選擇和配置?", parent=self.root):
             self.selected_servers.clear()
             self.env_entries.clear()
-            self.config_text.delete(1.0, tk.END)
+            self.config_text_area.config(state=tk.NORMAL)
+            self.config_text_area.delete(1.0, tk.END)
+            self.config_text_area.insert(tk.INSERT, "選擇已清除。請重新選擇服務器和配置類型。")
+            self.config_text_area.config(state=tk.DISABLED)
             self.populate_server_list()
-            self.update_env_config()
-            self.status_var.set("所有選擇已清除")
+            self.update_env_config_display()
+            self.update_status_bar("所有選擇已清除")
             
-    def show_help(self):
-        """顯示說明視窗"""
-        help_window = tk.Toplevel(self.root)
-        help_window.title("使用說明")
-        help_window.geometry("600x500")
-        help_window.transient(self.root)
-        
-        help_text = scrolledtext.ScrolledText(help_window, wrap=tk.WORD)
-        help_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        help_content = """
-MCP Docker 安裝器使用說明
+    def show_help_popup(self):
+        # (類似 Configurator 的 show_help_popup，但可以顯示更簡化的內容或指向 README)
+        help_content_from_guide = ""
+        try:
+            # Reuse the content from the guide tab
+            guide_tab_frame = self.install_guide_frame
+            scrolled_text_widget = guide_tab_frame.winfo_children()[0] # Assuming ScrolledText is the first child
+            help_content_from_guide = scrolled_text_widget.get(1.0, tk.END)
+        except:
+            help_content_from_guide = "請參考「快速指南」分頁或專案的 README.md 檔案獲得詳細幫助。"
 
-這個工具幫助您輕鬆選擇和配置 Model Context Protocol (MCP) 服務器。
-
-主要功能:
-1. 瀏覽和選擇可用的 MCP 服務器
-2. 配置必要的環境變數
-3. 生成各種格式的配置檔案
-4. 自動安裝 Docker 映像
-
-使用步驟:
-1. 服務器選擇分頁:
-   - 瀏覽可用的 MCP 服務器
-   - 使用分類和搜尋功能篩選
-   - 雙擊或點擊選擇欄位來選擇服務器
-
-2. 環境變數配置分頁:
-   - 為選定的服務器輸入必要的環境變數
-   - 例如: API 金鑰、資料庫連接字串等
-
-3. 配置生成分頁:
-   - 選擇配置類型 (Claude Desktop, VS Code, Docker Compose, Shell 腳本)
-   - 點擊「生成配置」按鈕
-   - 複製或儲存生成的配置
-
-4. 安裝指南分頁:
-   - 查看詳細的安裝和使用說明
-
-提示:
-• 確保 Docker Desktop 已安裝並運行
-• 準備好必要的 API 金鑰和憑證
-• 建議先閱讀安裝指南分頁的內容
-• 可以同時選擇多個服務器
-
-如需更多幫助，請參考:
-• MCP 官方文檔: https://modelcontextprotocol.io
-• Docker 官方文檔: https://docs.docker.com
-"""
-        
-        help_text.insert(tk.INSERT, help_content)
-        help_text.config(state=tk.DISABLED)
+        help_top = tk.Toplevel(self.root)
+        help_top.title("MCP 安裝器 - 使用說明")
+        help_top.geometry("700x500")
+        help_top.transient(self.root)
+        help_top.grab_set()
+        text_area = scrolledtext.ScrolledText(help_top, wrap=tk.WORD, padx=10, pady=10, font=('Arial', 10))
+        text_area.pack(fill=tk.BOTH, expand=True)
+        text_area.insert(tk.INSERT, help_content_from_guide)
+        text_area.config(state=tk.DISABLED)
+        ttk.Button(help_top, text="關閉", command=help_top.destroy).pack(pady=10)
 
 def main():
-    """主函數"""    
     root = tk.Tk()
     app = MCPInstallerGUI(root)
-    
-    # 設定視窗圖示（如果有的話）
-    try:
-        # root.iconbitmap('icon.ico')  # 取消註解並提供圖示檔案
-        pass
-    except:
-        pass
-    
     root.mainloop()
 
 if __name__ == "__main__":
