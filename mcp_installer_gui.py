@@ -14,6 +14,24 @@ import webbrowser
 from datetime import datetime
 import platform
 
+# 全域變數用於儲存從 JSON 載入的伺服器數據
+MCP_SERVERS_DATA = []
+
+def load_mcp_servers_from_catalog():
+    """從 mcp_catalog.json 載入 MCP 伺服器數據"""
+    global MCP_SERVERS_DATA
+    try:
+        with open('mcp_catalog.json', 'r', encoding='utf-8') as f:
+            MCP_SERVERS_DATA = json.load(f)
+        # 將列表轉換為字典，以 id 為鍵，方便查找
+        return {server['id']: server for server in MCP_SERVERS_DATA}
+    except FileNotFoundError:
+        messagebox.showerror("錯誤", "找不到 mcp_catalog.json 檔案！請確保該檔案存在於專案根目錄。")
+        return {}
+    except json.JSONDecodeError:
+        messagebox.showerror("錯誤", "mcp_catalog.json 檔案格式錯誤！")
+        return {}
+
 class MCPInstallerGUI:
     def __init__(self, root):
         self.root = root
@@ -24,143 +42,11 @@ class MCPInstallerGUI:
         style = ttk.Style()
         style.theme_use('clam')
         
-        # MCP 服務器列表 - 基於真實的 Docker Hub mcp/ 命名空間
-        self.mcp_servers = {
-            # 開發工具
-            "github": {
-                "description": "GitHub 儲存庫管理、檔案操作和 API 整合",
-                "category": "開發工具",
-                "image": "mcp/github",
-                "env_vars": ["GITHUB_TOKEN"],
-                "ports": [],
-                "required": False
-            },
-            "docker": {
-                "description": "Docker 容器、映像、卷和網路管理",
-                "category": "開發工具", 
-                "image": "mcp/docker",
-                "env_vars": ["DOCKER_HOST"],
-                "ports": [],
-                "required": False
-            },
-            "filesystem": {
-                "description": "本地檔案系統存取和管理",
-                "category": "開發工具",
-                "image": "mcp/filesystem",
-                "env_vars": [],
-                "ports": [],
-                "required": False
-            },
-            "git": {
-                "description": "Git 版本控制操作",
-                "category": "開發工具",
-                "image": "mcp/git",
-                "env_vars": [],
-                "ports": [],
-                "required": False
-            },
-            # 雲端服務
-            "aws": {
-                "description": "Amazon Web Services 整合",
-                "category": "雲端服務",
-                "image": "mcp/aws",
-                "env_vars": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION"],
-                "ports": [],
-                "required": False
-            },
-            "azure": {
-                "description": "Microsoft Azure 服務整合",
-                "category": "雲端服務",
-                "image": "mcp/azure",
-                "env_vars": ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_TENANT_ID"],
-                "ports": [],
-                "required": False
-            },
-            "gcp": {
-                "description": "Google Cloud Platform 整合",
-                "category": "雲端服務",
-                "image": "mcp/gcp",
-                "env_vars": ["GOOGLE_APPLICATION_CREDENTIALS"],
-                "ports": [],
-                "required": False
-            },
-            # 資料庫
-            "postgres": {
-                "description": "PostgreSQL 資料庫操作",
-                "category": "資料庫",
-                "image": "mcp/postgres",
-                "env_vars": ["POSTGRES_URL"],
-                "ports": ["5432"],
-                "required": False
-            },
-            "mongodb": {
-                "description": "MongoDB 資料庫操作",
-                "category": "資料庫",
-                "image": "mcp/mongodb",
-                "env_vars": ["MONGODB_URL"],
-                "ports": ["27017"],
-                "required": False
-            },
-            # API 服務
-            "slack": {
-                "description": "Slack 工作區整合",
-                "category": "API 服務",
-                "image": "mcp/slack",
-                "env_vars": ["SLACK_BOT_TOKEN"],
-                "ports": [],
-                "required": False
-            },
-            "stripe": {
-                "description": "Stripe 支付處理",
-                "category": "API 服務",
-                "image": "mcp/stripe",
-                "env_vars": ["STRIPE_API_KEY"],
-                "ports": [],
-                "required": False
-            },
-            "openai": {
-                "description": "OpenAI API 整合",
-                "category": "API 服務",
-                "image": "mcp/openai",
-                "env_vars": ["OPENAI_API_KEY"],
-                "ports": [],
-                "required": False
-            },
-            # 網路工具
-            "puppeteer": {
-                "description": "網頁自動化和截圖",
-                "category": "網路工具",
-                "image": "mcp/puppeteer",
-                "env_vars": ["DOCKER_CONTAINER"],
-                "ports": [],
-                "required": False
-            },
-            "brave-search": {
-                "description": "Brave 搜尋引擎 API",
-                "category": "網路工具",
-                "image": "mcp/brave-search",
-                "env_vars": ["BRAVE_API_KEY"],
-                "ports": [],
-                "required": False
-            },
-            # 基礎工具
-            "time": {
-                "description": "時間和時區工具",
-                "category": "基礎工具",
-                "image": "mcp/time",
-                "env_vars": [],
-                "ports": [],
-                "required": False
-            },
-            "weather": {
-                "description": "天氣資訊查詢",
-                "category": "基礎工具",
-                "image": "mcp/weather",
-                "env_vars": ["WEATHER_API_KEY"],
-                "ports": [],
-                "required": False
-            }
-        }
+        # 從 catalog 載入 MCP 服務器列表
+        self.mcp_servers = load_mcp_servers_from_catalog()
+        if not self.mcp_servers: # 如果載入失敗，則不繼續初始化GUI
+            self.root.quit()
+            return
         
         self.selected_servers = {}
         self.env_entries = {}
@@ -231,7 +117,7 @@ class MCPInstallerGUI:
         filter_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
         
         ttk.Label(filter_frame, text="分類:").grid(row=0, column=0, padx=5)
-        categories = ["全部"] + list(set(server["category"] for server in self.mcp_servers.values()))
+        categories = ["全部"] + list(set(server.get("category", "") for server in self.mcp_servers.values()))
         self.category_var = tk.StringVar(value="全部")
         category_combo = ttk.Combobox(filter_frame, textvariable=self.category_var, 
                                      values=categories, state="readonly")
@@ -264,7 +150,7 @@ class MCPInstallerGUI:
         self.server_tree.column('選擇', width=50)
         self.server_tree.column('名稱', width=100)
         self.server_tree.column('分類', width=100)
-        self.server_tree.column('描述', width=300)
+        self.server_tree.column('描述', width=450)
         self.server_tree.column('映像', width=200)
         
         # 加入捲軸
@@ -440,18 +326,27 @@ MCP Docker 安裝指南
         category_filter = self.category_var.get() if hasattr(self, 'category_var') else "全部"
         search_term = self.search_var.get().lower() if hasattr(self, 'search_var') else ""
         
-        for name, info in self.mcp_servers.items():
+        for server_id, info in self.mcp_servers.items():
             # 應用篩選
-            if category_filter != "全部" and info["category"] != category_filter:
+            if category_filter != "全部" and info.get("category") != category_filter:
                 continue
-            if search_term and search_term not in name.lower() and search_term not in info["description"].lower():
+            if search_term and not any(search_term in text.lower() for text in [
+                server_id, info.get("name", ""), info.get("description", ""), info.get("category", ""), info.get("popularity", "")
+            ]):
                 continue
                 
             # 檢查是否已選擇
-            selected = "✓" if name in self.selected_servers else ""
+            selected = "✓" if server_id in self.selected_servers else ""
+            popularity_indicator = f" ({info.get('popularity', 'N/A')})"
+            use_cases_str = "\n應用: " + ", ".join(info.get("use_cases", []))
+            description_with_details = f"{info.get('description', '')}{use_cases_str}"
             
-            self.server_tree.insert("", tk.END, iid=name, values=(
-                selected, name, info["category"], info["description"], info["image"]
+            self.server_tree.insert("", tk.END, iid=server_id, values=(
+                selected, 
+                info.get("name", "N/A") + popularity_indicator, 
+                info.get("category", "N/A"), 
+                description_with_details, 
+                info.get("image", "N/A")
             ))
             
     def filter_servers(self, event=None):
@@ -488,19 +383,28 @@ MCP Docker 安裝指南
         self.env_entries.clear()
         
         row = 0
-        for server_name, server_info in self.selected_servers.items():
-            if server_info["env_vars"]:
+        if not self.selected_servers:
+            no_selection_label = ttk.Label(self.env_frame, text="請先在「服務器選擇」分頁中選擇 MCP 服務器")
+            no_selection_label.grid(row=0, column=0, columnspan=2, pady=20)
+            return
+
+        for server_name, server_data_ref in self.selected_servers.items():
+            # 從 self.mcp_servers 獲取完整的伺服器資訊
+            server_info = self.mcp_servers.get(server_name)
+            if not server_info: continue
+
+            if server_info.get("env_vars"):
                 # 服務器標題
-                server_label = ttk.Label(self.env_frame, text=f"{server_name} ({server_info['image']})", 
+                server_label = ttk.Label(self.env_frame, text=f"{server_info.get('name', server_name)} ({server_info.get('image', 'N/A')})", 
                                        font=('TkDefaultFont', 10, 'bold'))
                 server_label.grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=(10, 5))
                 row += 1
                 
                 # 環境變數輸入框
-                for env_var in server_info["env_vars"]:
+                for env_var in server_info.get("env_vars", []):
                     ttk.Label(self.env_frame, text=f"{env_var}:").grid(row=row, column=0, sticky=tk.W, padx=(20, 5))
                     
-                    entry = ttk.Entry(self.env_frame, width=50)
+                    entry = ttk.Entry(self.env_frame, width=50, show="*" if "token" in env_var.lower() or "key" in env_var.lower() else None)
                     entry.grid(row=row, column=1, sticky=(tk.W, tk.E), padx=5)
                     
                     self.env_entries[f"{server_name}.{env_var}"] = entry
