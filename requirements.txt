@@ -1,5 +1,4 @@
 # 核心 GUI 依賴
-tkinter  # Python 內建，通常不需要安裝
 PyYAML>=6.0
 
 # 爬蟲依賴
@@ -27,7 +26,3 @@ mypy>=1.0.0
 # 安全性掃描
 bandit>=1.7.0
 safety>=2.3.0
-
-# Docker 和 DevOps
-docker>=6.0.0
-docker-compose>=1.29.0

@@ -1,14 +1,14 @@
 {
   "version": "2.0.0",
-  "last_updated": "2025-01-16T12:00:00Z",
-  "total_servers": 25,
+  "last_updated": "2025-05-28T00:50:35.197832",
+  "total_servers": 101,
   "description": "MCP 服務器目錄 - 包含最佳實踐安全配置和 Docker 最佳化設定",
   "security_notice": "所有 MCP 服務器都應該在隔離的 Docker 環境中運行以增強安全性",
   "servers": {
     "filesystem": {
       "id": "filesystem",
       "name": "Filesystem",
-      "description": "提供對本地檔案系統的安全存取和管理能力，支援檔案讀寫、目錄操作等。預設允許讀寫操作。",
+      "description": "Local filesystem access with configurable allowed paths",
       "category": "檔案系統",
       "image": "mcp/filesystem",
       "environment_vars": {
@@ -26,8 +26,8 @@
       "docker_required": true,
       "best_practices": {
         "read_only": false,
-        "memory_limit": "256m",
-        "cpu_limit": "0.5",
+        "memory_limit": "512m",
+        "cpu_limit": "1.0",
         "network_mode": "none",
         "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
@@ -37,7 +37,7 @@
       "default_ports": [],
       "official": true,
       "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
-      "popularity": "極高",
+      "popularity": "高",
       "use_cases": [
         "程式碼編輯",
         "文檔管理",
@@ -48,29 +48,31 @@
     },
     "github": {
       "id": "github",
-      "name": "GitHub",
-      "description": "與 GitHub 倉庫互動，支援拉取請求、問題管理、代碼審查等。",
-      "category": "版本控制",
+      "name": "Github",
+      "description": "Tools for interacting with the GitHub API, enabling file operations, repository management, searc...",
+      "category": "檔案系統",
       "image": "mcp/github",
       "environment_vars": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "your_token_here",
         "GITHUB_API_VERSION": "2022-11-28"
       },
+      "volumes": ["./.git:/workspace/.git", "./:/workspace"],
       "security_level": "high",
       "docker_required": true,
       "best_practices": {
-        "read_only": true,
+        "read_only": false,
         "memory_limit": "512m",
         "cpu_limit": "1.0",
-        "network_mode": "bridge",
-        "user": "1000:1000",
+        "network_mode": "none",
+        "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
-        "cap_drop": ["ALL"]
+        "cap_drop": ["ALL"],
+        "cap_add": ["CHOWN", "DAC_OVERRIDE"]
       },
       "default_ports": [],
       "official": true,
-      "reference_url": "https://github.com/github/github-mcp-server",
-      "popularity": "極高",
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+      "popularity": "高",
       "use_cases": [
         "代碼管理",
         "問題追蹤",
@@ -81,8 +83,8 @@
     },
     "postgres": {
       "id": "postgres",
-      "name": "PostgreSQL",
-      "description": "PostgreSQL 數據庫操作，支援查詢、數據分析和數據庫管理。",
+      "name": "Postgres",
+      "description": "Connect with read-only access to PostgreSQL databases. This server enables LLMs to inspect databa...",
       "category": "數據庫",
       "image": "mcp/postgres",
       "environment_vars": {
@@ -90,6 +92,7 @@
         "PG_STATEMENT_TIMEOUT": "30000",
         "MAX_CONNECTIONS": "10"
       },
+      "volumes": [],
       "security_level": "high",
       "docker_required": true,
       "best_practices": {
@@ -104,7 +107,7 @@
       "default_ports": [],
       "official": true,
       "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
-      "popularity": "極高",
+      "popularity": "高",
       "use_cases": [
         "數據分析",
         "數據庫管理",
@@ -116,7 +119,7 @@
     "fetch": {
       "id": "fetch",
       "name": "Fetch",
-      "description": "安全的網路請求工具，支援 HTTP/HTTPS 請求和 API 調用。",
+      "description": "Fetches a URL from the internet and extracts its contents as markdown",
       "category": "網路",
       "image": "mcp/fetch",
       "environment_vars": {
@@ -124,12 +127,13 @@
         "TIMEOUT": "30s",
         "MAX_REDIRECTS": "5"
       },
+      "volumes": [],
       "security_level": "medium",
       "docker_required": true,
       "best_practices": {
         "read_only": true,
-        "memory_limit": "256m",
-        "cpu_limit": "0.5",
+        "memory_limit": "512m",
+        "cpu_limit": "1.0",
         "network_mode": "bridge",
         "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
@@ -150,12 +154,11 @@
     "git": {
       "id": "git",
       "name": "Git",
-      "description": "Git 版本控制操作，支援提交、分支管理和歷史查詢。",
-      "category": "版本控制",
+      "description": "Git repository interaction and automation.",
+      "category": "檔案系統",
       "image": "mcp/git",
       "environment_vars": {
-        "GIT_USER_NAME": "MCP User",
-        "GIT_USER_EMAIL": "mcp@example.com"
+        "LOG_LEVEL": "INFO"
       },
       "volumes": ["./.git:/workspace/.git", "./:/workspace"],
       "security_level": "medium",
@@ -164,15 +167,16 @@
         "read_only": false,
         "memory_limit": "512m",
         "cpu_limit": "1.0",
-        "network_mode": "bridge",
-        "user": "git",
+        "network_mode": "none",
+        "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
-        "cap_drop": ["ALL"]
+        "cap_drop": ["ALL"],
+        "cap_add": ["CHOWN", "DAC_OVERRIDE"]
       },
       "default_ports": [],
       "official": true,
       "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/git",
-      "popularity": "高",
+      "popularity": "中等",
       "use_cases": [
         "版本控制",
         "代碼提交",
@@ -183,23 +187,22 @@
     },
     "sqlite": {
       "id": "sqlite",
-      "name": "SQLite",
-      "description": "SQLite 輕量級數據庫操作，適合本地數據存儲和分析。",
+      "name": "Sqlite",
+      "description": "Database interaction and business intelligence capabilities.",
       "category": "數據庫",
       "image": "mcp/sqlite",
       "environment_vars": {
-        "SQLITE_DB_PATH": "/data/database.db",
-        "QUERY_TIMEOUT": "30s"
+        "LOG_LEVEL": "INFO"
       },
       "volumes": ["./data:/data"],
-      "security_level": "low",
-      "docker_required": false,
+      "security_level": "high",
+      "docker_required": true,
       "best_practices": {
-        "read_only": false,
+        "read_only": true,
         "memory_limit": "256m",
         "cpu_limit": "0.5",
         "network_mode": "none",
-        "user": "sqlite",
+        "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
         "cap_drop": ["ALL"]
       },
@@ -207,31 +210,25 @@
       "official": true,
       "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/sqlite",
       "popularity": "中等",
-      "use_cases": [
-        "本地數據庫",
-        "原型開發",
-        "小型應用",
-        "數據分析",
-        "測試環境"
-      ]
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
     },
     "brave-search": {
       "id": "brave-search",
-      "name": "Brave Search",
-      "description": "隱私優先的搜尋引擎，提供安全的網路搜尋功能。",
-      "category": "搜尋",
+      "name": "Brave-Search",
+      "description": "Web and local search using Brave's Search API",
+      "category": "網路",
       "image": "mcp/brave-search",
       "environment_vars": {
-        "BRAVE_API_KEY": "your_api_key_here",
-        "MAX_RESULTS": "10"
+        "LOG_LEVEL": "INFO"
       },
-      "security_level": "high",
+      "volumes": [],
+      "security_level": "low",
       "docker_required": true,
       "best_practices": {
         "read_only": true,
         "memory_limit": "256m",
         "cpu_limit": "0.5",
-        "network_mode": "bridge",
+        "network_mode": "none",
         "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
         "cap_drop": ["ALL"]
@@ -239,19 +236,20 @@
       "default_ports": [],
       "official": true,
       "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search",
-      "popularity": "中等",
+      "popularity": "高",
       "use_cases": ["隱私搜尋", "研究", "內容發現", "事實檢查", "競品分析"]
     },
     "slack": {
       "id": "slack",
       "name": "Slack",
-      "description": "Slack 團隊協作，支援訊息發送、頻道管理和工作流程自動化。",
-      "category": "協作",
+      "description": "Interact with Slack Workspaces over the Slack API.",
+      "category": "API整合",
       "image": "mcp/slack",
       "environment_vars": {
         "SLACK_BOT_TOKEN": "xoxb-your-token",
         "SLACK_SIGNING_SECRET": "your_signing_secret"
       },
+      "volumes": [],
       "security_level": "high",
       "docker_required": true,
       "best_practices": {
@@ -259,7 +257,7 @@
         "memory_limit": "512m",
         "cpu_limit": "1.0",
         "network_mode": "bridge",
-        "user": "slack",
+        "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
         "cap_drop": ["ALL"]
       },
@@ -278,19 +276,20 @@
     "time": {
       "id": "time",
       "name": "Time",
-      "description": "時間和日期工具，支援時區轉換、日期計算和時間格式化。",
+      "description": "Time and timezone conversion capabilities",
       "category": "工具",
       "image": "mcp/time",
       "environment_vars": {
         "DEFAULT_TIMEZONE": "Asia/Taipei",
         "TIME_FORMAT": "ISO8601"
       },
+      "volumes": [],
       "security_level": "low",
       "docker_required": false,
       "best_practices": {
         "read_only": true,
-        "memory_limit": "128m",
-        "cpu_limit": "0.2",
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
         "network_mode": "none",
         "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
@@ -299,7 +298,7 @@
       "default_ports": [],
       "official": true,
       "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/time",
-      "popularity": "中等",
+      "popularity": "高",
       "use_cases": [
         "時間計算",
         "時區轉換",
@@ -311,13 +310,13 @@
     "everything": {
       "id": "everything",
       "name": "Everything",
-      "description": "多功能工具包，包含各種實用工具和示例功能。",
-      "category": "工具",
+      "description": "Reference / test server with prompts, resources, and tools",
+      "category": "其他",
       "image": "mcp/everything",
       "environment_vars": {
-        "LOG_LEVEL": "INFO",
-        "ENABLE_ALL_FEATURES": "true"
+        "LOG_LEVEL": "INFO"
       },
+      "volumes": [],
       "security_level": "low",
       "docker_required": false,
       "best_practices": {
@@ -332,13 +331,13 @@
       "default_ports": [],
       "official": true,
       "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/everything",
-      "popularity": "低",
-      "use_cases": ["測試", "示例", "原型開發", "學習", "工具測試"]
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
     },
     "memory": {
       "id": "memory",
       "name": "Memory",
-      "description": "記憶體管理工具，提供知識圖譜和上下文記憶功能。",
+      "description": "Knowledge graph-based persistent memory system.",
       "category": "記憶",
       "image": "mcp/memory",
       "environment_vars": {
@@ -353,7 +352,7 @@
         "memory_limit": "1g",
         "cpu_limit": "1.0",
         "network_mode": "none",
-        "user": "memory",
+        "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
         "cap_drop": ["ALL"]
       },
@@ -399,22 +398,21 @@
     "sentry": {
       "id": "sentry",
       "name": "Sentry",
-      "description": "Sentry 錯誤監控和性能追蹤，支援問題分析和錯誤管理。",
-      "category": "監控",
+      "description": "A Model Context Protocol server for retrieving and analyzing issues from Sentry.io. This server p...",
+      "category": "API整合",
       "image": "mcp/sentry",
       "environment_vars": {
-        "SENTRY_AUTH_TOKEN": "your_auth_token",
-        "SENTRY_ORG": "your_organization",
-        "SENTRY_PROJECT": "your_project"
+        "LOG_LEVEL": "INFO"
       },
+      "volumes": [],
       "security_level": "high",
       "docker_required": true,
       "best_practices": {
         "read_only": true,
-        "memory_limit": "512m",
-        "cpu_limit": "1.0",
-        "network_mode": "bridge",
-        "user": "sentry",
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
         "security_opt": ["no-new-privileges:true"],
         "cap_drop": ["ALL"]
       },
@@ -429,6 +427,2419 @@
         "警報管理",
         "應用健康監控"
       ]
+    },
+    "signatures": {
+      "id": "signatures",
+      "name": "Signatures",
+      "description": "Repository containing cosign signatures for images in the mcp namespace",
+      "category": "其他",
+      "image": "mcp/signatures",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/signatures",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "playwright": {
+      "id": "playwright",
+      "name": "Playwright",
+      "description": "Playwright MCP server",
+      "category": "其他",
+      "image": "mcp/playwright",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/playwright",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "puppeteer": {
+      "id": "puppeteer",
+      "name": "Puppeteer",
+      "description": "Browser automation and web scraping using Puppeteer.",
+      "category": "網路",
+      "image": "mcp/puppeteer",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer",
+      "popularity": "高",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "line": {
+      "id": "line",
+      "name": "Line",
+      "description": "MCP server that integrates the LINE Messaging API to connect an AI Agent to the LINE Official Acc...",
+      "category": "其他",
+      "image": "mcp/line",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/line",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "aws-terraform": {
+      "id": "aws-terraform",
+      "name": "Aws-Terraform",
+      "description": "Terraform on AWS best practices, infrastructure as code patterns, and security compliance with Ch...",
+      "category": "其他",
+      "image": "mcp/aws-terraform",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-terraform",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "everart": {
+      "id": "everart",
+      "name": "Everart",
+      "description": "Image generation server using EverArt's API.",
+      "category": "其他",
+      "image": "mcp/everart",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/everart",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "context7": {
+      "id": "context7",
+      "name": "Context7",
+      "description": "Context7 MCP Server -- Up-to-date code documentation for LLMs and AI code editors",
+      "category": "工具",
+      "image": "mcp/context7",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/context7",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "aws-kb-retrieval-server": {
+      "id": "aws-kb-retrieval-server",
+      "name": "Aws-Kb-Retrieval-Server",
+      "description": "An MCP server implementation for retrieving information from the AWS Knowledge Base using the Bed...",
+      "category": "記憶",
+      "image": "mcp/aws-kb-retrieval-server",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-kb-retrieval-server",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "aws-diagram": {
+      "id": "aws-diagram",
+      "name": "Aws-Diagram",
+      "description": "Seamlessly create diagrams using the Python diagrams package DSL. This server allows you to gener...",
+      "category": "其他",
+      "image": "mcp/aws-diagram",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-diagram",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "aws-cdk-mcp-server": {
+      "id": "aws-cdk-mcp-server",
+      "name": "Aws-Cdk-Mcp-Server",
+      "description": "AWS Cloud Development Kit (CDK) best practices, infrastructure as code patterns, and security com...",
+      "category": "其他",
+      "image": "mcp/aws-cdk-mcp-server",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-cdk-mcp-server",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "aws-core-mcp-server": {
+      "id": "aws-core-mcp-server",
+      "name": "Aws-Core-Mcp-Server",
+      "description": "Starting point for using the awslabs MCP servers.",
+      "category": "其他",
+      "image": "mcp/aws-core-mcp-server",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-core-mcp-server",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "aws-documentation": {
+      "id": "aws-documentation",
+      "name": "Aws-Documentation",
+      "description": "Tools to access AWS documentation, search for content, and get recommendations.",
+      "category": "搜尋",
+      "image": "mcp/aws-documentation",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-documentation",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "wikipedia-mcp": {
+      "id": "wikipedia-mcp",
+      "name": "Wikipedia-Mcp",
+      "description": "A Model Context Protocol (MCP) server that retrieves information from Wikipedia to provide contex...",
+      "category": "其他",
+      "image": "mcp/wikipedia-mcp",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/wikipedia-mcp",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "fibery": {
+      "id": "fibery",
+      "name": "Fibery",
+      "description": "Interact with your Fibery workspace.",
+      "category": "其他",
+      "image": "mcp/fibery",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/fibery",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "github-mcp-server": {
+      "id": "github-mcp-server",
+      "name": "Github-Mcp-Server",
+      "description": "Official GitHub MCP Server, by GitHub. Provides seamless integration with GitHub APIs, enabling a...",
+      "category": "檔案系統",
+      "image": "mcp/github-mcp-server",
+      "environment_vars": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_token_here",
+        "GITHUB_API_VERSION": "2022-11-28"
+      },
+      "volumes": ["./.git:/workspace/.git", "./:/workspace"],
+      "security_level": "high",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": false,
+        "memory_limit": "512m",
+        "cpu_limit": "1.0",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"],
+        "cap_add": ["CHOWN", "DAC_OVERRIDE"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/github-mcp-server",
+      "popularity": "中等",
+      "use_cases": [
+        "代碼管理",
+        "問題追蹤",
+        "拉取請求",
+        "自動化 CI/CD",
+        "代碼審查"
+      ]
+    },
+    "exa": {
+      "id": "exa",
+      "name": "Exa",
+      "description": "Claude can perform Web Search | Exa with MCP (Model Context Protocol)",
+      "category": "網路",
+      "image": "mcp/exa",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/exa",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "e2b": {
+      "id": "e2b",
+      "name": "E2B",
+      "description": "Giving Claude ability to run code with E2B via MCP (Model Context Protocol)",
+      "category": "其他",
+      "image": "mcp/e2b",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/e2b",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "render": {
+      "id": "render",
+      "name": "Render",
+      "description": "Interact with your Render resources via LLMs.",
+      "category": "其他",
+      "image": "mcp/render",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/render",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "box": {
+      "id": "box",
+      "name": "Box",
+      "description": "An MCP server capable of interacting with the Box API",
+      "category": "其他",
+      "image": "mcp/box",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/box",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "oxylabs": {
+      "id": "oxylabs",
+      "name": "Oxylabs",
+      "description": "A Model Context Protocol (MCP) server that enables AI assistants like Claude to seamlessly access...",
+      "category": "其他",
+      "image": "mcp/oxylabs",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/oxylabs",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "stripe": {
+      "id": "stripe",
+      "name": "Stripe",
+      "description": "Interact with Stripe services over the Stripe API.",
+      "category": "其他",
+      "image": "mcp/stripe",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/stripe",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "lara": {
+      "id": "lara",
+      "name": "Lara",
+      "description": "Connect to Lara Translate API, enabling powerful translation capabilities with support for langua...",
+      "category": "其他",
+      "image": "mcp/lara",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/lara",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "grafana": {
+      "id": "grafana",
+      "name": "Grafana",
+      "description": "MCP server for Grafana",
+      "category": "其他",
+      "image": "mcp/grafana",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/grafana",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "hyperbrowser": {
+      "id": "hyperbrowser",
+      "name": "Hyperbrowser",
+      "description": "A MCP server implementation for hyperbrowser",
+      "category": "其他",
+      "image": "mcp/hyperbrowser",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/hyperbrowser",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "dart": {
+      "id": "dart",
+      "name": "Dart",
+      "description": "Dart AI Model Context Protocol (MCP) server",
+      "category": "其他",
+      "image": "mcp/dart",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/dart",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "desktop-commander": {
+      "id": "desktop-commander",
+      "name": "Desktop-Commander",
+      "description": "Search, update, manage files and run terminal commands with AI",
+      "category": "檔案系統",
+      "image": "mcp/desktop-commander",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/desktop-commander",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "circleci": {
+      "id": "circleci",
+      "name": "Circleci",
+      "description": "A specialized server implementation for the Model Context Protocol (MCP) designed to integrate wi...",
+      "category": "其他",
+      "image": "mcp/circleci",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/circleci",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "elasticsearch": {
+      "id": "elasticsearch",
+      "name": "Elasticsearch",
+      "description": "Interact with your Elasticsearch indices through natural language conversations.",
+      "category": "搜尋",
+      "image": "mcp/elasticsearch",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/elasticsearch",
+      "popularity": "中等",
+      "use_cases": ["隱私搜尋", "研究", "內容發現", "事實檢查", "競品分析"]
+    },
+    "novita": {
+      "id": "novita",
+      "name": "Novita",
+      "description": "Seamless interaction with Novita AI platform resources.",
+      "category": "其他",
+      "image": "mcp/novita",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/novita",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "kubernetes": {
+      "id": "kubernetes",
+      "name": "Kubernetes",
+      "description": "Connect to a Kubernetes cluster and manage it",
+      "category": "其他",
+      "image": "mcp/kubernetes",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/kubernetes",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "chroma": {
+      "id": "chroma",
+      "name": "Chroma",
+      "description": "A Model Context Protocol (MCP) server implementation that provides database capabilities for Chroma",
+      "category": "數據庫",
+      "image": "mcp/chroma",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "high",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/chroma",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "gyazo": {
+      "id": "gyazo",
+      "name": "Gyazo",
+      "description": "Official Model Context Protocol server for Gyazo",
+      "category": "其他",
+      "image": "mcp/gyazo",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/gyazo",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "atlassian": {
+      "id": "atlassian",
+      "name": "Atlassian",
+      "description": "Tools for Atlassian products (Confluence and Jira). This integration supports both Atlassian Clou...",
+      "category": "其他",
+      "image": "mcp/atlassian",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/atlassian",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "dappier": {
+      "id": "dappier",
+      "name": "Dappier",
+      "description": "Enable fast, free real-time web search and access premium data from trusted media brands—news, ...",
+      "category": "網路",
+      "image": "mcp/dappier",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/dappier",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "shopify": {
+      "id": "shopify",
+      "name": "Shopify",
+      "description": "Shopify.dev MCP server",
+      "category": "其他",
+      "image": "mcp/shopify",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/shopify",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "tavily": {
+      "id": "tavily",
+      "name": "Tavily",
+      "description": "The Tavily MCP server provides seamless interaction with the tavily-search and tavily-extract too...",
+      "category": "搜尋",
+      "image": "mcp/tavily",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/tavily",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "redis": {
+      "id": "redis",
+      "name": "Redis",
+      "description": "Access to Redis database operations.",
+      "category": "數據庫",
+      "image": "mcp/redis",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "high",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/redis",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "cdata-connectcloud": {
+      "id": "cdata-connectcloud",
+      "name": "Cdata-Connectcloud",
+      "description": "This full functional MCP Server allows you to connect to any data source in Connect Cloud from Cl...",
+      "category": "其他",
+      "image": "mcp/cdata-connectcloud",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/cdata-connectcloud",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "mongodb": {
+      "id": "mongodb",
+      "name": "Mongodb",
+      "description": "A Model Context Protocol server to connect to MongoDB databases and MongoDB Atlas Clusters.",
+      "category": "數據庫",
+      "image": "mcp/mongodb",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "high",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/mongodb",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "notion": {
+      "id": "notion",
+      "name": "Notion",
+      "description": "Official Notion MCP Server",
+      "category": "其他",
+      "image": "mcp/notion",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/notion",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "pulumi": {
+      "id": "pulumi",
+      "name": "Pulumi",
+      "description": "Pulumi MCP Server",
+      "category": "其他",
+      "image": "mcp/pulumi",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/pulumi",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "docker": {
+      "id": "docker",
+      "name": "Docker",
+      "description": "MCP smart gateway used by the AI Tool Catalog",
+      "category": "監控",
+      "image": "mcp/docker",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/docker",
+      "popularity": "高",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "firecrawl": {
+      "id": "firecrawl",
+      "name": "Firecrawl",
+      "description": "Official Firecrawl MCP Server - Adds powerful web scraping to Cursor, Claude and any other LLM cl...",
+      "category": "網路",
+      "image": "mcp/firecrawl",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/firecrawl",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "opik": {
+      "id": "opik",
+      "name": "Opik",
+      "description": "Model Context Protocol (MCP) implementation for Opik enabling seamless IDE integration and unifie...",
+      "category": "其他",
+      "image": "mcp/opik",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/opik",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "scrapegraph": {
+      "id": "scrapegraph",
+      "name": "Scrapegraph",
+      "description": "ScapeGraph MCP Server",
+      "category": "記憶",
+      "image": "mcp/scrapegraph",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/scrapegraph",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "node-code-sandbox": {
+      "id": "node-code-sandbox",
+      "name": "Node-Code-Sandbox",
+      "description": "A Node.js–based Model Context Protocol server that spins up disposable Docker containers to exe...",
+      "category": "數據庫",
+      "image": "mcp/node-code-sandbox",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/node-code-sandbox",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "neo4j-memory": {
+      "id": "neo4j-memory",
+      "name": "Neo4J-Memory",
+      "description": "Provide persistent memory capabilities through Neo4j graph database integration.",
+      "category": "數據庫",
+      "image": "mcp/neo4j-memory",
+      "environment_vars": {
+        "MEMORY_DB_PATH": "/data/memory.db",
+        "MAX_MEMORY_SIZE": "1GB"
+      },
+      "volumes": ["./memory:/data"],
+      "security_level": "high",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": false,
+        "memory_limit": "1g",
+        "cpu_limit": "1.0",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/neo4j-memory",
+      "popularity": "低",
+      "use_cases": [
+        "知識管理",
+        "上下文記憶",
+        "資訊檢索",
+        "學習輔助",
+        "個人助理"
+      ]
+    },
+    "neo4j-cypher": {
+      "id": "neo4j-cypher",
+      "name": "Neo4J-Cypher",
+      "description": "Interact with Neo4j using Cypher graph queries.",
+      "category": "記憶",
+      "image": "mcp/neo4j-cypher",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/neo4j-cypher",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "hackle": {
+      "id": "hackle",
+      "name": "Hackle",
+      "description": "Model Context Protocol server for Hackle",
+      "category": "其他",
+      "image": "mcp/hackle",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/hackle",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "razorpay": {
+      "id": "razorpay",
+      "name": "Razorpay",
+      "description": "Razorpay's Official MCP Server",
+      "category": "其他",
+      "image": "mcp/razorpay",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/razorpay",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "audiense-insights": {
+      "id": "audiense-insights",
+      "name": "Audiense-Insights",
+      "description": "Audiense Insights MCP Server is a server based on the Model Context Protocol (MCP) that allows Cl...",
+      "category": "其他",
+      "image": "mcp/audiense-insights",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/audiense-insights",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "obsidian": {
+      "id": "obsidian",
+      "name": "Obsidian",
+      "description": "MCP server that interacts with Obsidian via the Obsidian rest API community plugin",
+      "category": "其他",
+      "image": "mcp/obsidian",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/obsidian",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "neo4j-cloud-aura-api": {
+      "id": "neo4j-cloud-aura-api",
+      "name": "Neo4J-Cloud-Aura-Api",
+      "description": "Manage Neo4j Aura database instances through the Neo4j Aura API.",
+      "category": "數據庫",
+      "image": "mcp/neo4j-cloud-aura-api",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "high",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/neo4j-cloud-aura-api",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "edubase": {
+      "id": "edubase",
+      "name": "Edubase",
+      "description": "The EduBase MCP server enables Claude and other LLMs to interact with EduBase's comprehensive e-l...",
+      "category": "其他",
+      "image": "mcp/edubase",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/edubase",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "3d-printer": {
+      "id": "3d-printer",
+      "name": "3D-Printer",
+      "description": "Connects MCP to major 3D printer APIs (Orca, Bambu, OctoPrint, Klipper, Duet, Repetier, Prusa, Cr...",
+      "category": "其他",
+      "image": "mcp/3d-printer",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/3d-printer",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "redis-cloud": {
+      "id": "redis-cloud",
+      "name": "Redis-Cloud",
+      "description": "MCP Server for Redis Cloud's API, allowing you to manage your Redis Cloud resources using natural...",
+      "category": "其他",
+      "image": "mcp/redis-cloud",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/redis-cloud",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "heroku": {
+      "id": "heroku",
+      "name": "Heroku",
+      "description": "Heroku Platform MCP Server using the Heroku CLI",
+      "category": "其他",
+      "image": "mcp/heroku",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/heroku",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "azure": {
+      "id": "azure",
+      "name": "Azure",
+      "description": "The Azure MCP Server, bringing the power of Azure to your agents.",
+      "category": "其他",
+      "image": "mcp/azure",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/azure",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "husqvarna-automower": {
+      "id": "husqvarna-automower",
+      "name": "Husqvarna-Automower",
+      "description": "MCP Server for huqsvarna automower",
+      "category": "其他",
+      "image": "mcp/husqvarna-automower",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/husqvarna-automower",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "sequentialthinking": {
+      "id": "sequentialthinking",
+      "name": "Sequentialthinking",
+      "description": "Dynamic and reflective problem-solving through thought sequences.",
+      "category": "其他",
+      "image": "mcp/sequentialthinking",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+      "popularity": "高",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "perplexity-ask": {
+      "id": "perplexity-ask",
+      "name": "Perplexity-Ask",
+      "description": "Connector for Perplexity API, to enable real-time, web-wide research.",
+      "category": "網路",
+      "image": "mcp/perplexity-ask",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/perplexity-ask",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "google-maps": {
+      "id": "google-maps",
+      "name": "Google-Maps",
+      "description": "Tools for interacting with the Google Maps API.",
+      "category": "API整合",
+      "image": "mcp/google-maps",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "gitlab": {
+      "id": "gitlab",
+      "name": "Gitlab",
+      "description": "MCP Server for the GitLab API, enabling project management, file operations, and more.",
+      "category": "檔案系統",
+      "image": "mcp/gitlab",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": ["./.git:/workspace/.git", "./:/workspace"],
+      "security_level": "medium",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": false,
+        "memory_limit": "512m",
+        "cpu_limit": "1.0",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"],
+        "cap_add": ["CHOWN", "DAC_OVERRIDE"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/gitlab",
+      "popularity": "中等",
+      "use_cases": [
+        "版本控制",
+        "代碼提交",
+        "分支管理",
+        "合併衝突解決",
+        "歷史追蹤"
+      ]
+    },
+    "glif": {
+      "id": "glif",
+      "name": "Glif",
+      "description": "Easily run glif.app AI workflows inside your LLM: image generators, memes, selfies, and more. Gli...",
+      "category": "其他",
+      "image": "mcp/glif",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/glif",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "duckduckgo": {
+      "id": "duckduckgo",
+      "name": "Duckduckgo",
+      "description": "A Model Context Protocol (MCP) server that provides web search capabilities through DuckDuckGo, w...",
+      "category": "網路",
+      "image": "mcp/duckduckgo",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/duckduckgo",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "devhub-cms": {
+      "id": "devhub-cms",
+      "name": "Devhub-Cms",
+      "description": "DevHub CMS LLM integration through the Model Context Protocol",
+      "category": "其他",
+      "image": "mcp/devhub-cms",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/devhub-cms",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "databutton": {
+      "id": "databutton",
+      "name": "Databutton",
+      "description": "Databutton MCP Server",
+      "category": "其他",
+      "image": "mcp/databutton",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/databutton",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "cyreslab-ai-shodan": {
+      "id": "cyreslab-ai-shodan",
+      "name": "Cyreslab-Ai-Shodan",
+      "description": "A Model Context Protocol server that provides access to Shodan API functionality",
+      "category": "其他",
+      "image": "mcp/cyreslab-ai-shodan",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/cyreslab-ai-shodan",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "bitrefill": {
+      "id": "bitrefill",
+      "name": "Bitrefill",
+      "description": "A Model Context Protocol Server connector for Bitrefill public API, to enable AI agents to search...",
+      "category": "搜尋",
+      "image": "mcp/bitrefill",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/bitrefill",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "basic-memory": {
+      "id": "basic-memory",
+      "name": "Basic-Memory",
+      "description": "Basic Memory is a knowledge management system that allows you to build a persistent semantic grap...",
+      "category": "記憶",
+      "image": "mcp/basic-memory",
+      "environment_vars": {
+        "MEMORY_DB_PATH": "/data/memory.db",
+        "MAX_MEMORY_SIZE": "1GB"
+      },
+      "volumes": ["./memory:/data"],
+      "security_level": "medium",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": false,
+        "memory_limit": "1g",
+        "cpu_limit": "1.0",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/basic-memory",
+      "popularity": "中等",
+      "use_cases": [
+        "知識管理",
+        "上下文記憶",
+        "資訊檢索",
+        "學習輔助",
+        "個人助理"
+      ]
+    },
+    "302_sandbox": {
+      "id": "302_sandbox",
+      "name": "302_Sandbox",
+      "description": "302 Sandbox MCP",
+      "category": "數據庫",
+      "image": "mcp/302_sandbox",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/302_sandbox",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "astra-db": {
+      "id": "astra-db",
+      "name": "Astra-Db",
+      "description": "An MCP server for Astra DB workloads",
+      "category": "數據庫",
+      "image": "mcp/astra-db",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/astra-db",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "atlas-docs": {
+      "id": "atlas-docs",
+      "name": "Atlas-Docs",
+      "description": "Provide LLMs hosted, clean markdown documentation of libraries and frameworks",
+      "category": "其他",
+      "image": "mcp/atlas-docs",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/atlas-docs",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "webflow": {
+      "id": "webflow",
+      "name": "Webflow",
+      "description": "Model Context Protocol (MCP) server for the Webflow Data API.",
+      "category": "網路",
+      "image": "mcp/webflow",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/webflow",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "kong": {
+      "id": "kong",
+      "name": "Kong",
+      "description": "A Model Context Protocol (MCP) server for interacting with Kong Konnect APIs, allowing AI assista...",
+      "category": "其他",
+      "image": "mcp/kong",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/kong",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "elevenlabs": {
+      "id": "elevenlabs",
+      "name": "Elevenlabs",
+      "description": "The official ElevenLabs MCP server",
+      "category": "其他",
+      "image": "mcp/elevenlabs",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/elevenlabs",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "doit": {
+      "id": "doit",
+      "name": "Doit",
+      "description": "DoiT official MCP Server",
+      "category": "其他",
+      "image": "mcp/doit",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/doit",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "multiversx-mx": {
+      "id": "multiversx-mx",
+      "name": "Multiversx-Mx",
+      "description": "MCP Server for MultiversX",
+      "category": "其他",
+      "image": "mcp/multiversx-mx",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/multiversx-mx",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "tembo": {
+      "id": "tembo",
+      "name": "Tembo",
+      "description": "MCP server for Tembo Cloud's platform API",
+      "category": "其他",
+      "image": "mcp/tembo",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/tembo",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "github-chat": {
+      "id": "github-chat",
+      "name": "Github-Chat",
+      "description": "A Model Context Protocol (MCP) for analyzing and querying GitHub repositories using the GitHub Ch...",
+      "category": "檔案系統",
+      "image": "mcp/github-chat",
+      "environment_vars": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your_token_here",
+        "GITHUB_API_VERSION": "2022-11-28"
+      },
+      "volumes": ["./.git:/workspace/.git", "./:/workspace"],
+      "security_level": "high",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": false,
+        "memory_limit": "512m",
+        "cpu_limit": "1.0",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"],
+        "cap_add": ["CHOWN", "DAC_OVERRIDE"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/github-chat",
+      "popularity": "中等",
+      "use_cases": [
+        "代碼管理",
+        "問題追蹤",
+        "拉取請求",
+        "自動化 CI/CD",
+        "代碼審查"
+      ]
+    },
+    "tweetbinder": {
+      "id": "tweetbinder",
+      "name": "Tweetbinder",
+      "description": "TweetBinder MCP Server is a server based on the Model Context Protocol (MCP) that allows Claude a...",
+      "category": "其他",
+      "image": "mcp/tweetbinder",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/tweetbinder",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "scrapezy": {
+      "id": "scrapezy",
+      "name": "Scrapezy",
+      "description": "A Model Context Protocol server for Scrapezy that enables AI models to extract structured data fr...",
+      "category": "其他",
+      "image": "mcp/scrapezy",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/scrapezy",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "hyperspell": {
+      "id": "hyperspell",
+      "name": "Hyperspell",
+      "description": "Hyperspell MCP Server",
+      "category": "其他",
+      "image": "mcp/hyperspell",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/hyperspell",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "neon": {
+      "id": "neon",
+      "name": "Neon",
+      "description": "MCP server for interacting with Neon Management API and databases",
+      "category": "數據庫",
+      "image": "mcp/neon",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "high",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/neon",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "youtube-transcript": {
+      "id": "youtube-transcript",
+      "name": "Youtube-Transcript",
+      "description": "Retrieves transcripts for given YouTube video URLs",
+      "category": "其他",
+      "image": "mcp/youtube-transcript",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/youtube-transcript",
+      "popularity": "中等",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "wolfram-alpha": {
+      "id": "wolfram-alpha",
+      "name": "Wolfram-Alpha",
+      "description": "Connect your chat repl to wolfram alpha computational intelligence",
+      "category": "其他",
+      "image": "mcp/wolfram-alpha",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/wolfram-alpha",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "veyrax": {
+      "id": "veyrax",
+      "name": "Veyrax",
+      "description": "VeyraX MCP is the only connection you need to access all your tools in any MCP-compatible environ...",
+      "category": "其他",
+      "image": "mcp/veyrax",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/veyrax",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
+    },
+    "triplewhale": {
+      "id": "triplewhale",
+      "name": "Triplewhale",
+      "description": "Triplewhale MCP Server",
+      "category": "其他",
+      "image": "mcp/triplewhale",
+      "environment_vars": {
+        "LOG_LEVEL": "INFO"
+      },
+      "volumes": [],
+      "security_level": "low",
+      "docker_required": true,
+      "best_practices": {
+        "read_only": true,
+        "memory_limit": "256m",
+        "cpu_limit": "0.5",
+        "network_mode": "none",
+        "user": "nobody",
+        "security_opt": ["no-new-privileges:true"],
+        "cap_drop": ["ALL"]
+      },
+      "default_ports": [],
+      "official": true,
+      "reference_url": "https://github.com/modelcontextprotocol/servers/tree/main/src/triplewhale",
+      "popularity": "低",
+      "use_cases": ["多用途工具", "開發輔助", "自動化", "測試", "學習"]
     }
   },
   "docker_security_guidelines": {
