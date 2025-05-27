@@ -28,17 +28,25 @@ def load_mcp_servers_from_catalog():
         # 檢查新格式 (version 2.0.0+)
         if isinstance(catalog_data, dict) and 'servers' in catalog_data:
             servers = catalog_data['servers']
-        else:
+        # 檢查舊格式
+        elif isinstance(catalog_data, list):
             # 舊格式兼容
-            servers = {server['id']: server for server in catalog_data if isinstance(catalog_data, list)}
+            servers = {server['id']: server for server in catalog_data}
+        # 結構無效
+        else:
+            messagebox.showerror("錯誤", "mcp_catalog.json 檔案格式錯誤：結構無效，預期為列表或包含 'servers' 鍵的字典。")
+            MCP_SERVERS_DATA = {}
+            return {}
         
         MCP_SERVERS_DATA = servers
         return servers
     except FileNotFoundError:
         messagebox.showerror("錯誤", "找不到 mcp_catalog.json 檔案！請確保該檔案存在於專案根目錄。")
+        MCP_SERVERS_DATA = {}
         return {}
     except json.JSONDecodeError:
         messagebox.showerror("錯誤", "mcp_catalog.json 檔案格式錯誤！")
+        MCP_SERVERS_DATA = {}
         return {}
 
 class MCPDockerConfigurator:
@@ -67,11 +75,6 @@ class MCPDockerConfigurator:
         self.memory_limit_var = tk.StringVar(value="512m")
         self.cpu_limit_var = tk.StringVar(value="1.0")
         
-        # 修復變數引用問題
-        self.memory_var = self.memory_limit_var  # 別名，以兼容現有代碼
-        self.cpu_var = self.cpu_limit_var        # 別名，以兼容現有代碼
-        self.network_var = self.network_mode_var # 別名，以兼容現有代碼
-        
         # 快速設定選項
         self.quick_setup_var = tk.StringVar(value="development")
         self.filesystem_paths_var = tk.StringVar(value="/workspace:/data:/home/user/projects")
@@ -83,6 +86,12 @@ class MCPDockerConfigurator:
         
         # 在 create_widgets 之前顯示快速指引
         self.create_widgets()
+
+        # Defer data population and initial UI updates
+        self.root.after(1, self.populate_server_list) 
+        self.root.after(1, self.update_env_config)
+        self.root.after(1, self.update_config_preview) # Ensure initial state of preview panes
+
         self.root.after(500, self.show_quick_start_guide)  # 延遲顯示指引
         
     def show_quick_start_guide(self):
@@ -400,7 +409,6 @@ class MCPDockerConfigurator:
         self.server_tree.bind("<Button-3>", self.show_server_context_menu)  # 右鍵選單
         self.server_tree.bind("<Button-1>", self.on_server_click) # 處理點擊選擇框
 
-        self.populate_server_list()
     
     def create_env_config_ui(self, parent_frame):
         parent_frame.columnconfigure(0, weight=1)
@@ -417,7 +425,6 @@ class MCPDockerConfigurator:
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        self.update_env_config()
 
     def create_config_generation_ui(self, parent_frame):
         parent_frame.columnconfigure(0, weight=1)
@@ -1288,41 +1295,37 @@ class MCPDockerConfigurator:
         """檢查 Docker 狀態"""
         try:
             # 檢查 Docker 版本
-            result = subprocess.run(["docker", "--version"], 
-                                  capture_output=True, text=True, timeout=5)
-            if result.returncode != 0:
-                raise Exception("Docker 未安裝")
-                
-            version = result.stdout.strip()
+            version_result = subprocess.run(["docker", "--version"], 
+                                          capture_output=True, text=True, timeout=5, check=True) # Add check=True
+            version = version_result.stdout.strip()
             
             # 檢查 Docker 是否運行
-            result = subprocess.run(["docker", "info"], 
-                                  capture_output=True, text=True, timeout=5)
-            if result.returncode != 0:
-                messagebox.showwarning("Docker 狀態", 
-                                     f"Docker 已安裝但未運行\n{version}\n\n請啟動 Docker Desktop")
-                self.status_var.set("Docker 未運行")
-                return False
-                
-            # 檢查 MCP 映像
-            result = subprocess.run(["docker", "images", "--filter", "reference=mcp/*"], 
-                                  capture_output=True, text=True, timeout=5)
-            mcp_images = len(result.stdout.strip().split('\n')) - 1  # 減去標題行
+            info_result = subprocess.run(["docker", "info"], 
+                                       capture_output=True, text=True, timeout=5, check=True) # Add check=True
+            
+            # 檢查 MCP 映像 (This command is less critical, so direct error if it fails might be too much, but check=True can be used if needed)
+            images_result = subprocess.run(["docker", "images", "--filter", "reference=mcp/*"], 
+                                           capture_output=True, text=True, timeout=5, check=True)
+            mcp_images = len(images_result.stdout.strip().split('\n')) - 1  # 減去標題行
             
             messagebox.showinfo("Docker 狀態", 
                               f"✅ Docker 正常運行\n{version}\n\n📦 已安裝 {mcp_images} 個 MCP 映像")
             self.status_var.set(f"Docker 正常運行 - {mcp_images} 個 MCP 映像")
             return True
             
+        except subprocess.CalledProcessError as e:
+            error_message = f"Docker 命令執行失敗: {e.cmd}\n錯誤碼: {e.returncode}\n輸出:\n{e.stderr or e.stdout}"
+            messagebox.showerror("Docker 錯誤", error_message)
+            self.status_var.set("Docker 命令錯誤")
         except subprocess.TimeoutExpired:
             messagebox.showerror("錯誤", "檢查 Docker 狀態超時")
-            self.status_var.set("檢查超時")
+            self.status_var.set("檢查 Docker 超時")
         except FileNotFoundError:
-            messagebox.showerror("錯誤", "找不到 Docker 命令\n請確認 Docker 已正確安裝")
+            messagebox.showerror("錯誤", "找不到 Docker 命令。\n請確認 Docker 已正確安裝並在系統 PATH 中。")
             self.status_var.set("Docker 未安裝")
         except Exception as e:
-            messagebox.showerror("錯誤", f"檢查 Docker 時發生錯誤:\n{str(e)}")
-            self.status_var.set("檢查失敗")
+            messagebox.showerror("錯誤", f"檢查 Docker 時發生未預期錯誤:\n{str(e)}")
+            self.status_var.set("檢查 Docker 失敗")
             
         return False
         
@@ -1384,29 +1387,38 @@ class MCPDockerConfigurator:
                 try:
                     # 執行 docker pull
                     process = subprocess.Popen(
-                        ["docker", "pull", server_info['image']], 
-                        stdout=subprocess.PIPE, 
+                        ["docker", "pull", server_info['image']],
+                        stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
                         text=True,
-                        universal_newlines=True
+                        universal_newlines=True,
+                        errors='replace' # Handle potential encoding errors in output
                     )
                     
                     # 即時顯示輸出
-                    for line in process.stdout:
+                    for line in process.stdout: # type: ignore
                         log_text.insert(tk.END, line)
                         log_text.see(tk.END)
                         progress_window.update()
                         
-                    process.wait()
+                    process.wait(timeout=300) # Add a timeout (e.g., 5 minutes per image)
                     
                     if process.returncode == 0:
-                        log_text.insert(tk.END, f"✅ {server_info['name']} 安裝成功!\n")
+                        log_text.insert(tk.END, f"✅ {server_info['name']} ({server_info['image']}) 安裝成功!\n")
                         success_count += 1
                     else:
-                        log_text.insert(tk.END, f"❌ {server_info['name']} 安裝失敗!\n")
+                        log_text.insert(tk.END, f"❌ {server_info['name']} ({server_info['image']}) 安裝失敗! Docker 返回碼: {process.returncode}\n")
                         
+                except FileNotFoundError:
+                    log_text.insert(tk.END, f"❌ Docker 命令 'docker pull' 未找到。請檢查 Docker 是否正確安裝。\n")
+                    # Potentially stop further processing if docker is not found
+                    progress_label.config(text="Docker 命令未找到")
+                    break 
+                except subprocess.TimeoutExpired:
+                    log_text.insert(tk.END, f"❌ {server_info['name']} ({server_info['image']}) 安裝超時。\n")
+                    if process: process.kill() # Ensure the process is killed on timeout
                 except Exception as e:
-                    log_text.insert(tk.END, f"❌ {server_info['name']} 安裝錯誤: {str(e)}\n")
+                    log_text.insert(tk.END, f"❌ {server_info['name']} ({server_info['image']}) 安裝時發生未預期錯誤: {str(e)}\n")
                     
                 progress_bar['value'] = i + 1
                 log_text.see(tk.END)
@@ -1458,22 +1470,39 @@ class MCPDockerConfigurator:
             "compose": "docker-compose.yml"
         }
         
-        try:
-            for platform, config in configs.items():
-                if config and self.platform_vars.get(platform, tk.BooleanVar()).get():
-                    file_path = os.path.join(save_dir, file_names[platform])
+        error_messages = []
+        for platform, config_content in configs.items():
+            if config_content and self.platform_vars.get(platform, tk.BooleanVar()).get():
+                file_path = os.path.join(save_dir, file_names[platform])
+                try:
                     with open(file_path, 'w', encoding='utf-8') as f:
-                        f.write(config)
+                        f.write(config_content)
                     saved_files.append(file_names[platform])
+                except (IOError, OSError) as e:
+                    error_msg = f"無法儲存檔案 '{file_names[platform]}':\n{e}"
+                    messagebox.showerror("儲存錯誤", error_msg)
+                    error_messages.append(error_msg)
+                except Exception as e: # Catch any other unexpected error during write
+                    error_msg = f"儲存檔案 '{file_names[platform]}' 時發生未預期錯誤:\n{e}"
+                    messagebox.showerror("儲存錯誤", error_msg)
+                    error_messages.append(error_msg)
                     
-            if saved_files:
-                messagebox.showinfo("成功", f"已儲存以下配置檔案:\n\n" + "\n".join(f"• {f}" for f in saved_files))
-                self.status_var.set(f"已儲存 {len(saved_files)} 個配置檔案")
-            else:
-                messagebox.showwarning("警告", "沒有需要儲存的配置檔案")
-                
-        except Exception as e:
-            messagebox.showerror("錯誤", f"儲存配置檔案時發生錯誤:\n{str(e)}")
+        if saved_files and not error_messages:
+            messagebox.showinfo("成功", f"已成功儲存以下配置檔案:\n\n" + "\n".join(f"• {f}" for f in saved_files))
+            self.status_var.set(f"已儲存 {len(saved_files)} 個配置檔案")
+        elif saved_files and error_messages:
+            messagebox.showwarning("部分成功", 
+                                 f"已儲存 {len(saved_files)} 個檔案, 但以下檔案儲存失敗:\n\n" + 
+                                 "\n".join(error_messages))
+            self.status_var.set(f"部分配置儲存成功，{len(error_messages)} 個失敗")
+        elif not saved_files and error_messages:
+            messagebox.showerror("全部失敗", 
+                               f"所有檔案儲存失敗:\n\n" + 
+                               "\n".join(error_messages))
+            self.status_var.set("所有配置儲存失敗")
+        else: # No files selected or generated for saving
+            messagebox.showwarning("警告", "沒有需要儲存的配置檔案。")
+            self.status_var.set("沒有配置被儲存")
             
     def copy_configs(self):
         """複製配置到剪貼簿"""
@@ -1566,10 +1595,14 @@ class MCPDockerConfigurator:
             try:
                 with open(filename, 'w', encoding='utf-8') as f:
                     json.dump(settings, f, indent=2, ensure_ascii=False)
-                messagebox.showinfo("成功", f"設定已匯出到:\n{filename}")
+                messagebox.showinfo("成功", f"設定已成功匯出到:\n{filename}")
                 self.status_var.set("設定已匯出")
-            except Exception as e:
-                messagebox.showerror("錯誤", f"匯出設定時發生錯誤:\n{str(e)}")
+            except (IOError, OSError) as e:
+                messagebox.showerror("匯出錯誤", f"無法寫入檔案 '{filename}':\n{e}")
+                self.status_var.set("匯出設定失敗")
+            except Exception as e: # Catch any other unexpected error during export
+                messagebox.showerror("匯出錯誤", f"匯出設定時發生未預期錯誤:\n{str(e)}")
+                self.status_var.set("匯出設定失敗")
                 
     def import_settings(self):
         """匯入設定"""
@@ -1583,7 +1616,21 @@ class MCPDockerConfigurator:
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 settings = json.load(f)
-                
+        except (IOError, OSError) as e:
+            messagebox.showerror("匯入錯誤", f"無法讀取檔案 '{filename}':\n{e}")
+            self.status_var.set("匯入設定失敗 - 檔案讀取錯誤")
+            return
+        except json.JSONDecodeError as e:
+            messagebox.showerror("匯入錯誤", f"檔案 '{filename}' 不是有效的 JSON 格式:\n{e}")
+            self.status_var.set("匯入設定失敗 - JSON 格式錯誤")
+            return
+        except Exception as e: # Catch any other unexpected error during load
+            messagebox.showerror("匯入錯誤", f"匯入設定時發生未預期錯誤:\n{str(e)}")
+            self.status_var.set("匯入設定失敗 - 未預期錯誤")
+            return
+
+        # Proceed with applying settings if loading was successful
+        try:
             # 清除現有選擇
             self.selected_servers.clear()
             
@@ -1613,11 +1660,12 @@ class MCPDockerConfigurator:
             self.update_env_config()
             self.update_config_preview()
             
-            messagebox.showinfo("成功", f"已匯入設定:\n• {len(self.selected_servers)} 個服務器\n• 平台和安全設定")
+            messagebox.showinfo("成功", f"已成功匯入設定:\n• {len(self.selected_servers)} 個服務器\n• 平台和安全設定")
             self.status_var.set(f"已匯入 {len(self.selected_servers)} 個服務器設定")
             
-        except Exception as e:
-            messagebox.showerror("錯誤", f"匯入設定時發生錯誤:\n{str(e)}")
+        except Exception as e: # Catch errors during the application of settings
+            messagebox.showerror("設定應用錯誤", f"套用匯入的設定時發生錯誤:\n{str(e)}")
+            self.status_var.set("套用匯入設定失敗")
             
     def show_detailed_help(self):
         """顯示詳細說明視窗"""
