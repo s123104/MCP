@@ -93,14 +93,6 @@ class MCPInstallerGUI:
                 "ports": ["5432"],
                 "required": False
             },
-            "mysql": {
-                "description": "MySQL 資料庫操作",
-                "category": "資料庫",
-                "image": "mcp/mysql",
-                "env_vars": ["MYSQL_URL"],
-                "ports": ["3306"],
-                "required": False
-            },
             "mongodb": {
                 "description": "MongoDB 資料庫操作",
                 "category": "資料庫",
