@@ -15,6 +15,24 @@ from datetime import datetime
 import platform
 import yaml
 
+# 全域變數用於儲存從 JSON 載入的伺服器數據
+MCP_SERVERS_DATA = []
+
+def load_mcp_servers_from_catalog():
+    """從 mcp_catalog.json 載入 MCP 伺服器數據"""
+    global MCP_SERVERS_DATA
+    try:
+        with open('mcp_catalog.json', 'r', encoding='utf-8') as f:
+            MCP_SERVERS_DATA = json.load(f)
+        # 將列表轉換為字典，以 id 為鍵，方便查找
+        return {server['id']: server for server in MCP_SERVERS_DATA}
+    except FileNotFoundError:
+        messagebox.showerror("錯誤", "找不到 mcp_catalog.json 檔案！請確保該檔案存在於專案根目錄。")
+        return {}
+    except json.JSONDecodeError:
+        messagebox.showerror("錯誤", "mcp_catalog.json 檔案格式錯誤！")
+        return {}
+
 class MCPDockerConfigurator:
     def __init__(self, root):
         self.root = root
@@ -25,207 +43,11 @@ class MCPDockerConfigurator:
         # 設定現代化樣式
         self.setup_styles()
         
-        # 官方 MCP Docker 服務器列表 (基於最新 Docker Hub mcp/ 命名空間)
-        self.mcp_servers = {
-            # 開發工具類
-            "github": {
-                "name": "GitHub",
-                "description": "GitHub 儲存庫管理、檔案操作和 API 整合",
-                "category": "開發工具",
-                "image": "mcp/github",
-                "env_vars": ["GITHUB_TOKEN"],
-                "ports": [],
-                "transport": ["stdio", "sse"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/github"
-            },
-            "docker": {
-                "name": "Docker", 
-                "description": "Docker 容器、映像、卷和網路管理",
-                "category": "開發工具",
-                "image": "mcp/docker",
-                "env_vars": ["DOCKER_HOST"],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://github.com/QuantGeekDev/docker-mcp"
-            },
-            "filesystem": {
-                "name": "Filesystem",
-                "description": "本地檔案系統安全存取和管理",
-                "category": "開發工具",
-                "image": "mcp/filesystem",
-                "env_vars": [],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"
-            },
-            "git": {
-                "name": "Git",
-                "description": "Git 版本控制操作和儲存庫管理",
-                "category": "開發工具",
-                "image": "mcp/git", 
-                "env_vars": [],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/git"
-            },
-            
-            # 雲端服務類
-            "aws": {
-                "name": "AWS",
-                "description": "Amazon Web Services 完整整合",
-                "category": "雲端服務",
-                "image": "mcp/aws",
-                "env_vars": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_REGION"],
-                "ports": [],
-                "transport": ["stdio", "sse"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-kb-retrieval"
-            },
-            "azure": {
-                "name": "Azure",
-                "description": "Microsoft Azure 服務完整整合",
-                "category": "雲端服務", 
-                "image": "mcp/azure",
-                "env_vars": ["AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_TENANT_ID"],
-                "ports": [],
-                "transport": ["stdio", "sse"],
-                "official": True,
-                "url": "https://github.com/Azure/azure-mcp"
-            },
-            "gcp": {
-                "name": "Google Cloud",
-                "description": "Google Cloud Platform 服務整合",
-                "category": "雲端服務",
-                "image": "mcp/gcp",
-                "env_vars": ["GOOGLE_APPLICATION_CREDENTIALS"],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://cloud.google.com/docs"
-            },
-            
-            # 資料庫類
-            "postgres": {
-                "name": "PostgreSQL",
-                "description": "PostgreSQL 資料庫查詢和管理",
-                "category": "資料庫",
-                "image": "mcp/postgres",
-                "env_vars": ["POSTGRES_URL"],
-                "ports": ["5432"],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"
-            },
-            "mysql": {
-                "name": "MySQL",
-                "description": "MySQL 資料庫操作和查詢",
-                "category": "資料庫",
-                "image": "mcp/mysql", 
-                "env_vars": ["MYSQL_URL"],
-                "ports": ["3306"],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers"
-            },
-            "mongodb": {
-                "name": "MongoDB",
-                "description": "MongoDB NoSQL 資料庫操作",
-                "category": "資料庫",
-                "image": "mcp/mongodb",
-                "env_vars": ["MONGODB_URL"],
-                "ports": ["27017"],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://www.mongodb.com/docs"
-            },
-            
-            # API 服務類
-            "slack": {
-                "name": "Slack",
-                "description": "Slack 工作區訊息和頻道管理",
-                "category": "API 服務",
-                "image": "mcp/slack",
-                "env_vars": ["SLACK_BOT_TOKEN"],
-                "ports": [],
-                "transport": ["stdio", "sse"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/slack"
-            },
-            "stripe": {
-                "name": "Stripe",
-                "description": "Stripe 支付處理和訂閱管理",
-                "category": "API 服務",
-                "image": "mcp/stripe",
-                "env_vars": ["STRIPE_API_KEY"],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://stripe.com/docs/api"
-            },
-            "openai": {
-                "name": "OpenAI",
-                "description": "OpenAI API 整合和模型呼叫",
-                "category": "API 服務",
-                "image": "mcp/openai",
-                "env_vars": ["OPENAI_API_KEY"],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://platform.openai.com/docs"
-            },
-            
-            # 網路工具類
-            "puppeteer": {
-                "name": "Puppeteer",
-                "description": "網頁自動化、截圖和抓取",
-                "category": "網路工具",
-                "image": "mcp/puppeteer",
-                "env_vars": ["DOCKER_CONTAINER"],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer"
-            },
-            "brave-search": {
-                "name": "Brave Search",
-                "description": "Brave 搜尋引擎 API 整合",
-                "category": "網路工具",
-                "image": "mcp/brave-search",
-                "env_vars": ["BRAVE_API_KEY"],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search"
-            },
-            
-            # 基礎工具類
-            "time": {
-                "name": "Time",
-                "description": "時間查詢、時區轉換和日期工具",
-                "category": "基礎工具",
-                "image": "mcp/time",
-                "env_vars": [],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/time"
-            },
-            "weather": {
-                "name": "Weather",
-                "description": "天氣資訊查詢和預報",
-                "category": "基礎工具",
-                "image": "mcp/weather",
-                "env_vars": ["WEATHER_API_KEY"],
-                "ports": [],
-                "transport": ["stdio"],
-                "official": True,
-                "url": "https://openweathermap.org/api"
-            }
-        }
+        # 從 catalog 載入 MCP 伺服器列表
+        self.mcp_servers = load_mcp_servers_from_catalog()
+        if not self.mcp_servers: # 如果載入失敗，則不繼續初始化GUI
+            self.root.quit()
+            return
         
         self.selected_servers = {}
         self.env_entries = {}
@@ -331,8 +153,8 @@ class MCPDockerConfigurator:
         self.server_tree.column('選擇', width=40, anchor=tk.CENTER)
         self.server_tree.column('名稱', width=100)
         self.server_tree.column('分類', width=100)
-        self.server_tree.column('描述', width=300)
-        self.server_tree.column('映像', width=150)
+        self.server_tree.column('描述', width=450)
+        self.server_tree.column('映像', width=200)
         self.server_tree.column('官方', width=60, anchor=tk.CENTER)
         
         # 捲軸
@@ -673,22 +495,31 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
         
         for server_id, info in self.mcp_servers.items():
             # 分類篩選
-            if category_filter != "全部" and info["category"] != category_filter:
+            if category_filter != "全部" and info.get("category") != category_filter:
                 continue
                 
             # 搜尋篩選  
             if search_term and not any(search_term in text.lower() for text in [
-                server_id, info["name"], info["description"], info["category"]]):
+                server_id, info.get("name", ""), info.get("description", ""), info.get("category", "") , info.get("popularity", "")
+            ]):
                 continue
-                
-            # 檢查是否已選擇
-            selected = "✓" if server_id in self.selected_servers else ""
-            official = "✓" if info.get("official", False) else ""
             
-            # 插入項目
+            # 顯示應用場景 - 新增
+            use_cases_str = ", ".join(info.get("use_cases", []))
+            description_with_use_cases = f"{info.get('description', '')}\n應用: {use_cases_str}"
+
+            selected = "✓" if server_id in self.selected_servers else ""
+            official_symbol = "🔥" if info.get("official", False) else ""
+            popularity_indicator = f" ({info.get('popularity', 'N/A')})" # 熱門程度顯示
+            
+            # 插入項目，包含熱門程度和更詳細的描述
             item_id = self.server_tree.insert("", tk.END, iid=server_id, values=(
-                selected, info["name"], info["category"], 
-                info["description"], info["image"], official
+                selected, 
+                info.get("name", "N/A") + popularity_indicator, 
+                info.get("category", "N/A"), 
+                description_with_use_cases, # 使用包含應用場景的描述
+                info.get("image", "N/A"), 
+                official_symbol
             ))
             
             # 設定顏色 (官方服務器用不同顏色)
@@ -732,14 +563,24 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
             return
             
         context_menu = tk.Menu(self.root, tearoff=0)
-        server_info = self.mcp_servers[item]
+        server_info = self.mcp_servers.get(item)
+        if not server_info: return # 如果找不到服務器資訊則返回
         
-        context_menu.add_command(label=f"📋 複製映像名稱", 
-                               command=lambda: self.copy_to_clipboard(server_info["image"]))
-        context_menu.add_command(label=f"🌐 開啟文檔", 
-                               command=lambda: webbrowser.open(server_info["url"]))
+        context_menu.add_command(label=f"📋 複製映像名稱: {server_info.get('image', 'N/A')}", 
+                               command=lambda: self.copy_to_clipboard(server_info.get('image', '')))
+        context_menu.add_command(label=f"🌐 開啟文檔: {server_info.get('url', '#')}", 
+                               command=lambda: webbrowser.open(server_info.get('url', '#')) if server_info.get('url') else None)
         context_menu.add_separator()
         
+        # 新增：顯示應用場景
+        use_cases = server_info.get('use_cases', [])
+        if use_cases:
+            use_cases_menu = tk.Menu(context_menu, tearoff=0)
+            for uc in use_cases:
+                use_cases_menu.add_command(label=uc, state=tk.DISABLED) # 應用場景不可點擊
+            context_menu.add_cascade(label="💡 主要應用場景", menu=use_cases_menu)
+            context_menu.add_separator()
+
         if item in self.selected_servers:
             context_menu.add_command(label="❌ 取消選擇", 
                                    command=lambda: self.toggle_selection(item))
@@ -901,10 +742,22 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
                         env_vars[env_var] = value
                         
             # 傳輸協定處理
-            transport = self.transport_vars.get(server_id, tk.StringVar(value="stdio")).get()
-            if transport == "sse":
-                default_port = 5008
-                server_config["args"].extend(["-p", f"{default_port}:{default_port}"])
+            transport_options = server_info.get("transport", ["stdio"])
+            transport_to_use = self.transport_vars.get(server_id, tk.StringVar(value=transport_options[0])).get()
+            
+            if transport_to_use == "sse":
+                default_port = 5008 # 預設SSE端口，可以考慮從catalog讀取
+                # 檢查 server_info["ports"] 是否有值且不為空
+                # 如果 catalog 中定義了 ports，優先使用 catalog 中的第一個 port
+                if server_info.get("ports") and len(server_info["ports"]) > 0:
+                    try:
+                        actual_port = int(server_info["ports"][0])
+                        server_config["args"].extend(["-p", f"{actual_port}:{actual_port}"])
+                    except ValueError:
+                        # 如果 port 不是數字，則使用 default_port
+                        server_config["args"].extend(["-p", f"{default_port}:{default_port}"])
+                else:
+                    server_config["args"].extend(["-p", f"{default_port}:{default_port}"])
                 server_config["args"].append(server_info["image"])
                 server_config["args"].extend(["--transport", "sse"])
             else:
@@ -1049,8 +902,10 @@ A: Docker 容器提供程序隔離、檔案系統隔離、網路隔離和資源�
                 service_config["environment"] = env_vars
                 
             # 端口映射
-            if server_info["ports"]:
-                service_config["ports"] = [f"{port}:{port}" for port in server_info["ports"]]
+            if server_info.get("ports"):
+                # 確保端口是字串列表
+                ports_to_map = [str(p) for p in server_info["ports"]]
+                service_config["ports"] = [f"{port}:{port}" for port in ports_to_map]
                 
             config["services"][f"{server_id}-mcp"] = service_config
             
