@@ -23,13 +23,42 @@ def load_mcp_servers_from_catalog():
     global MCP_SERVERS_DATA
     try:
         with open('mcp_catalog.json', 'r', encoding='utf-8') as f:
-            MCP_SERVERS_DATA = json.load(f)
-        return {server['id']: server for server in MCP_SERVERS_DATA}
+            catalog_data = json.load(f) # Load into a temporary variable
+
+        if isinstance(catalog_data, dict) and 'servers' in catalog_data:
+            # New format: catalog_data is a dict with a 'servers' key
+            actual_servers_dict = catalog_data['servers']
+            MCP_SERVERS_DATA = actual_servers_dict 
+            return actual_servers_dict
+        elif isinstance(catalog_data, list):
+            # Old format: catalog_data is a list of server objects
+            # Ensure each item is a dict with an 'id' before processing
+            actual_servers_dict = {
+                server['id']: server 
+                for server in catalog_data 
+                if isinstance(server, dict) and 'id' in server
+            }
+            # Check if the conversion resulted in an empty dict from a non-empty list,
+            # which might indicate malformed list items.
+            if not actual_servers_dict and catalog_data:
+                 messagebox.showerror("錯誤", "mcp_catalog.json 檔案格式錯誤：列表中的項目無效。")
+                 MCP_SERVERS_DATA = {}
+                 return {}
+            MCP_SERVERS_DATA = actual_servers_dict
+            return actual_servers_dict
+        else:
+            # Invalid structure
+            messagebox.showerror("錯誤", "mcp_catalog.json 檔案格式錯誤：結構無效，預期為列表或包含 'servers' 鍵的字典。")
+            MCP_SERVERS_DATA = {}
+            return {}
+
     except FileNotFoundError:
         messagebox.showerror("錯誤", "找不到 mcp_catalog.json 檔案！請確保該檔案存在於專案根目錄。")
+        MCP_SERVERS_DATA = {}
         return {}
     except json.JSONDecodeError:
         messagebox.showerror("錯誤", "mcp_catalog.json 檔案格式錯誤！")
+        MCP_SERVERS_DATA = {}
         return {}
 
 class MCPInstallerGUI:
