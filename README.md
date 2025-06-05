@@ -6,6 +6,8 @@
 
 基於真實 Docker Hub MCP Catalog 的完整 Model Context Protocol Docker 使用方案，包含自動化安裝、GUI 配置器和生產環境部署指南。
 
+> **新手提示**：建議直接使用內建圖形化工具 `mcp_docker_configurator.py` 完成安裝與配置。以下流程將以 GUI 操作為核心說明。
+
 ## 🚀 快速開始
 
 ### 📋 系統需求
@@ -63,6 +65,14 @@ docker info
 # Linux: curl -fsSL https://get.docker.com | sh
 ```
 
+#### 4. 啟動 GUI 配置器
+
+```bash
+python mcp_docker_configurator.py
+```
+
+啟動後依照介面選擇需要的 MCP 服務器並生成對應的設定檔，完成後即可依指示在本地端執行。
+
 ### ⚡ 一鍵自動安裝
 
 #### Linux/macOS 快速安裝
@@ -78,6 +88,14 @@ chmod +x install-mcp-docker.sh
 ./install-mcp-docker.sh
 ```
 
+完成安裝後，執行：
+
+```bash
+python mcp_docker_configurator.py
+```
+
+即可透過 GUI 選擇並安裝所需服務。
+
 #### Windows PowerShell 快速安裝
 
 ```powershell
@@ -90,6 +108,14 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/s123104/MCP/main/insta
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .\install-mcp-docker.ps1
 ```
+
+完成後在同一個 PowerShell 視窗執行：
+
+```powershell
+python mcp_docker_configurator.py
+```
+
+透過圖形介面即可完成服務安裝與配置。
 
 ### 🛠️ 手動安裝 (推薦開發者)
 
@@ -259,6 +285,18 @@ python mcp_docker_configurator.py
 # 4. 配置環境變數 (如 API 金鑰)
 # 5. 生成配置檔案
 ```
+
+#### 📂 Filesystem 服務正確安裝
+
+若選擇 `filesystem` 服務，請確保在 GUI 中設定欲掛載的本機路徑，例如將主目錄的 Documents 掛載為讀寫模式：
+
+```bash
+docker run -i --rm -v "$HOME/Documents:/workspace" mcp/filesystem
+```
+
+若使用 SSE/HTTP 部署，請將 `ALLOWED_PATHS` 環境變數設定為 `/workspace`，並依照 GUI 生成的 `docker-compose.yml` 配置對外暴露埠口。
+
+完成配置後即可在本地或遠端安全地存取檔案。
 
 ### 🔄 日常使用指令
 
@@ -724,6 +762,22 @@ docker run -d \
   mcp/your-server
 ```
 
+#### SSE/HTTP 模式設定
+
+若需透過 SSE 或 HTTP 方式存取 MCP 服務，可在 GUI 生成的 `docker-compose.yml` 中調整 `ports` 與 `command` 參數。例如：
+
+```yaml
+services:
+  filesystem:
+    image: mcp/filesystem
+    environment:
+      - ALLOWED_PATHS=/workspace
+    ports:
+      - "8080:80"  # 對外提供 HTTP 介面
+```
+
+於瀏覽器或客戶端即可透過 `http://localhost:8080` 連接服務。
+
 ## 🔧 配置檔案位置
 
 ### Claude Desktop
@@ -837,7 +891,7 @@ docker inspect container-name
 
 ## 🤝 貢獻指南
 
-我們歡迎社群貢獻！請參考以下指南：
+我們歡迎社群貢獻！請參考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 1. **Fork 專案** - 建立您的功能分支
 2. **提交變更** - 遵循 commit 訊息規範
