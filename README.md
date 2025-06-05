@@ -891,7 +891,7 @@ docker inspect container-name
 
 ## 🤝 貢獻指南
 
-我們歡迎社群貢獻！請參考以下指南：
+我們歡迎社群貢獻！請參考 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 1. **Fork 專案** - 建立您的功能分支
 2. **提交變更** - 遵循 commit 訊息規範
