@@ -135,7 +135,7 @@ class MCPDockerConfigurator:
         """
         
         steps_label = ttk.Label(main_frame, text=steps_text, justify=tk.LEFT, 
-                               font=('Arial', 11))
+                               font=('Helvetica Neue', 11))
         steps_label.pack(pady=(0, 20), anchor=tk.W)
         
         # 快速設定選項
@@ -200,40 +200,40 @@ class MCPDockerConfigurator:
         style.theme_use('clam') # clam 主題通常比預設的更現代
 
         # --- 顏色定義 ---
-        BG_COLOR = '#f0f2f5' # 更現代的淺灰背景
-        FG_COLOR = '#333333' # 深灰色文字
-        ACCENT_COLOR = '#0078d4' # 主題藍色 (類 VS Code)
-        BUTTON_BG = '#0078d4'
+        BG_COLOR = '#F5F5F7'  # Apple 淺灰背景
+        FG_COLOR = '#1C1C1E'  # 深灰色文字
+        ACCENT_COLOR = '#0A84FF'  # Apple 藍色
+        BUTTON_BG = ACCENT_COLOR
         BUTTON_FG = '#ffffff'
-        BUTTON_ACTIVE_BG = '#005a9e'
-        TREE_HEADER_BG = '#e1e1e1'
-        TREE_SELECTED_BG = '#cce4f7' # 淡藍色選中背景
+        BUTTON_ACTIVE_BG = '#0060DF'
+        TREE_HEADER_BG = '#E1E1E1'
+        TREE_SELECTED_BG = '#DDE9FF'  # 淡藍色選中背景
         INPUT_BG = '#ffffff'
         INPUT_FG = '#333333'
         LABEL_FG = '#111111'
-        STATUS_BAR_BG = '#0078d4'
+        STATUS_BAR_BG = ACCENT_COLOR
         STATUS_BAR_FG = '#ffffff'
 
         self.root.configure(bg=BG_COLOR)
 
         # --- 通用樣式配置 ---
-        style.configure('.', background=BG_COLOR, foreground=FG_COLOR, font=('Arial', 10)) # 使用 Arial 字體
+        style.configure('.', background=BG_COLOR, foreground=FG_COLOR, font=('Helvetica Neue', 10))
         style.configure('TFrame', background=BG_COLOR)
-        style.configure('TLabel', background=BG_COLOR, foreground=LABEL_FG, font=('Arial', 10))
-        style.configure('Header.TLabel', font=('Arial', 11, 'bold'), foreground=ACCENT_COLOR)
-        style.configure('Title.TLabel', font=('Arial', 16, 'bold'), foreground=FG_COLOR)
-        style.configure('Category.TLabel', font=('Arial', 12, 'bold'), foreground=ACCENT_COLOR, padding=(0,10,0,5))
+        style.configure('TLabel', background=BG_COLOR, foreground=LABEL_FG, font=('Helvetica Neue', 10))
+        style.configure('Header.TLabel', font=('Helvetica Neue', 11, 'bold'), foreground=ACCENT_COLOR)
+        style.configure('Title.TLabel', font=('Helvetica Neue', 16, 'bold'), foreground=FG_COLOR)
+        style.configure('Category.TLabel', font=('Helvetica Neue', 12, 'bold'), foreground=ACCENT_COLOR, padding=(0,10,0,5))
 
         # --- Notebook 樣式 ---
         style.configure('TNotebook', background=BG_COLOR, tabmargins=[2, 5, 2, 0])
-        style.configure('TNotebook.Tab', padding=[10, 5], font=('Arial', 10, 'bold'), foreground=FG_COLOR)
+        style.configure('TNotebook.Tab', padding=[10, 5], font=('Helvetica Neue', 10, 'bold'), foreground=FG_COLOR)
         style.map('TNotebook.Tab', 
                   background=[('selected', BG_COLOR)], 
                   foreground=[('selected', ACCENT_COLOR)],
                   expand=[('selected', [1, 1, 1, 0])]) # 選中 tab 視覺效果
 
         # --- Button 樣式 ---
-        style.configure('TButton', font=('Arial', 10, 'bold'), 
+        style.configure('TButton', font=('Helvetica Neue', 10, 'bold'), 
                         background=BUTTON_BG, foreground=BUTTON_FG,
                         padding=(10, 5),
                         borderwidth=0, relief='flat')
@@ -247,19 +247,19 @@ class MCPDockerConfigurator:
         # --- Treeview 樣式 ---
         style.configure('Treeview', 
                         background=INPUT_BG, foreground=INPUT_FG, 
-                        fieldbackground=INPUT_BG, rowheight=28, font=('Arial', 10))
-        style.configure('Treeview.Heading', font=('Arial', 10, 'bold'), 
+                        fieldbackground=INPUT_BG, rowheight=28, font=('Helvetica Neue', 10))
+        style.configure('Treeview.Heading', font=('Helvetica Neue', 10, 'bold'), 
                           background=TREE_HEADER_BG, foreground=FG_COLOR, relief='flat', padding=(5,5))
         style.map('Treeview.Heading', background=[('active', '#cccccc')])
         style.map('Treeview', background=[('selected', TREE_SELECTED_BG)], foreground=[('selected', FG_COLOR)])
 
         # --- Entry 和 ScrolledText (透過 Tkinter 設定) ---
-        self.root.option_add("*TEntry*Font", ('Arial', 10))
+        self.root.option_add("*TEntry*Font", ('Helvetica Neue', 10))
         self.root.option_add("*TEntry*Background", INPUT_BG)
         self.root.option_add("*TEntry*Foreground", INPUT_FG)
         self.root.option_add("*TEntry*selectBackground", ACCENT_COLOR)
         self.root.option_add("*TEntry*selectForeground", 'white')
-        self.root.option_add("*Text*Font", ('Arial', 10))
+        self.root.option_add("*Text*Font", ('Helvetica Neue', 10))
         self.root.option_add("*Text*Background", INPUT_BG)
         self.root.option_add("*Text*Foreground", INPUT_FG)
         self.root.option_add("*Text*selectBackground", ACCENT_COLOR)
@@ -267,11 +267,11 @@ class MCPDockerConfigurator:
 
         # --- LabelFrame 樣式 ---
         style.configure('TLabelframe', background=BG_COLOR, borderwidth=1, relief="groove", padding=10)
-        style.configure('TLabelframe.Label', background=BG_COLOR, foreground=ACCENT_COLOR, font=('Arial', 11, 'bold'))
+        style.configure('TLabelframe.Label', background=BG_COLOR, foreground=ACCENT_COLOR, font=('Helvetica Neue', 11, 'bold'))
 
         # --- Checkbutton and Radiobutton ---
-        style.configure('TCheckbutton', background=BG_COLOR, font=('Arial', 10))
-        style.configure('TRadiobutton', background=BG_COLOR, font=('Arial', 10))
+        style.configure('TCheckbutton', background=BG_COLOR, font=('Helvetica Neue', 10))
+        style.configure('TRadiobutton', background=BG_COLOR, font=('Helvetica Neue', 10))
 
         # --- Scrollbar ---
         style.configure('Vertical.TScrollbar', background=BG_COLOR, troughcolor=BG_COLOR, bordercolor=BG_COLOR, arrowcolor=FG_COLOR)
@@ -283,7 +283,7 @@ class MCPDockerConfigurator:
         self.status_bar_style = {
             'bg': STATUS_BAR_BG,
             'fg': STATUS_BAR_FG,
-            'font': ('Arial', 10, 'bold'),
+            'font': ('Helvetica Neue', 10, 'bold'),
             'relief': tk.SUNKEN,
             'anchor': tk.W,
             'padx': 10
@@ -360,13 +360,13 @@ class MCPDockerConfigurator:
         categories = ["全部"] + sorted(list(set(s.get("category", "未分類") for s in self.mcp_servers.values())))
         self.category_var = tk.StringVar(value="全部")
         category_combo = ttk.Combobox(filter_bar, textvariable=self.category_var, values=categories, 
-                                      state="readonly", width=15, font=('Arial', 10))
+                                      state="readonly", width=15, font=('Helvetica Neue', 10))
         category_combo.pack(side=tk.LEFT, padx=(0,10))
         category_combo.bind("<<ComboboxSelected>>", self.filter_servers)
         
         ttk.Label(filter_bar, text="搜尋:").pack(side=tk.LEFT, padx=(0,5))
         self.search_var = tk.StringVar()
-        search_entry = ttk.Entry(filter_bar, textvariable=self.search_var, width=20, font=('Arial', 10))
+        search_entry = ttk.Entry(filter_bar, textvariable=self.search_var, width=20, font=('Helvetica Neue', 10))
         search_entry.pack(side=tk.LEFT, padx=(0,10))
         search_entry.bind("<KeyRelease>", self.filter_servers)
 
@@ -568,7 +568,7 @@ class MCPDockerConfigurator:
     def create_help_ui(self, parent_frame):
         parent_frame.columnconfigure(0, weight=1)
         parent_frame.rowconfigure(0, weight=1)
-        help_text_widget = scrolledtext.ScrolledText(parent_frame, wrap=tk.WORD, relief=tk.SOLID, borderwidth=1, padx=10, pady=10, font=('Arial', 10))
+        help_text_widget = scrolledtext.ScrolledText(parent_frame, wrap=tk.WORD, relief=tk.SOLID, borderwidth=1, padx=10, pady=10, font=('Helvetica Neue', 10))
         help_text_widget.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 載入 README.md 或特定說明內容
@@ -890,13 +890,13 @@ class MCPDockerConfigurator:
             """
             
             ttk.Label(info_frame, text=info_text, justify=tk.LEFT, 
-                     font=('Arial', 10)).grid(row=0, column=0, sticky=tk.W)
+                     font=('Helvetica Neue', 10)).grid(row=0, column=0, sticky=tk.W)
             
             # 顯示選擇提示
             select_frame = ttk.Frame(self.env_scroll_frame)
             select_frame.grid(row=1, column=0, pady=20)
             ttk.Label(select_frame, text="👈 請先在左側選擇 MCP 服務器開始配置", 
-                     style='Header.TLabel', font=('Arial', 12)).pack()
+                     style='Header.TLabel', font=('Helvetica Neue', 12)).pack()
             return
             
         row = 0
@@ -961,7 +961,7 @@ class MCPDockerConfigurator:
         
         # 說明內容
         help_text = scrolledtext.ScrolledText(main_frame, wrap=tk.WORD, height=25, width=70,
-                                             font=('Arial', 11))
+                                             font=('Helvetica Neue', 11))
         help_text.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
         
         content = """
