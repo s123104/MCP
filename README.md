@@ -778,6 +778,72 @@ docker run -d \
   mcp/your-server
 ```
 
+#### docker-compose.yml 安全範例
+
+```yaml
+version: "3.8"
+services:
+  filesystem:
+    image: mcp/filesystem
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./seccomp-profiles/filesystem.json
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+    user: "1000:1000"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    volumes:
+      - type: bind
+        source: ./data/allowed
+        target: /workspace
+        read_only: true
+        bind:
+          propagation: rprivate
+    environment:
+      - ALLOWED_PATHS=/workspace
+    networks:
+      - mcp-isolated
+
+networks:
+  mcp-isolated:
+    driver: bridge
+    internal: true
+```
+
+#### 環境變數安全管理
+
+```yaml
+secrets:
+  github_token:
+    external: true
+
+services:
+  github:
+    image: mcp/github
+    secrets:
+      - github_token
+    environment:
+      - GITHUB_TOKEN_FILE=/run/secrets/github_token
+```
+
+#### 網路隔離與監控
+
+```yaml
+falco:
+  image: falcosecurity/falco:latest
+  privileged: true
+  volumes:
+    - /var/run/docker.sock:/host/var/run/docker.sock
+    - /proc:/host/proc:ro
+    - /boot:/host/boot:ro
+    - /lib/modules:/host/lib/modules:ro
+```
+
 #### SSE/HTTP 模式設定
 
 若需透過 SSE 或 HTTP 方式存取 MCP 服務，可在 GUI 生成的 `docker-compose.yml` 中調整 `ports` 與 `command` 參數。例如：
