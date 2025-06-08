@@ -288,11 +288,27 @@ python mcp_docker_configurator.py
 
 #### 📂 Filesystem 服務正確安裝
 
-若選擇 `filesystem` 服務，請確保在 GUI 中設定欲掛載的本機路徑，例如將主目錄的 Documents 掛載為讀寫模式：
+若選擇 `filesystem` 服務，建議使用以下安全化命令掛載需要存取的目錄，避免不必要的權限暴露:
 
 ```bash
-docker run -i --rm -v "$HOME/Documents:/workspace" mcp/filesystem
+ docker run -d 
+  --name secure-mcp-filesystem 
+  --read-only 
+  --tmpfs /tmp:rw,noexec,nosuid,size=100m 
+  --tmpfs /var/run:rw,noexec,nosuid,size=50m 
+  --security-opt no-new-privileges:true 
+  --cap-drop ALL 
+  --cap-add CHOWN 
+  --cap-add DAC_OVERRIDE 
+  --user 1000:1000 
+  --memory 256m 
+  --cpus 0.5 
+  --network none 
+  -v "/path/to/allowed/dir:/workspace:ro,Z" 
+  -e ALLOWED_PATHS="/workspace" 
+  mcp/filesystem
 ```
+上述指令會將 `/path/to/allowed/dir` 以唯讀模式掛載到容器的 `/workspace`，並限制容器資源及權限.
 
 若使用 SSE/HTTP 部署，請將 `ALLOWED_PATHS` 環境變數設定為 `/workspace`，並依照 GUI 生成的 `docker-compose.yml` 配置對外暴露埠口。
 
@@ -760,6 +776,72 @@ docker run -d \
   --cpus 0.5 \
   --network mcp-network \
   mcp/your-server
+```
+
+#### docker-compose.yml 安全範例
+
+```yaml
+version: "3.8"
+services:
+  filesystem:
+    image: mcp/filesystem
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./seccomp-profiles/filesystem.json
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+    user: "1000:1000"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    volumes:
+      - type: bind
+        source: ./data/allowed
+        target: /workspace
+        read_only: true
+        bind:
+          propagation: rprivate
+    environment:
+      - ALLOWED_PATHS=/workspace
+    networks:
+      - mcp-isolated
+
+networks:
+  mcp-isolated:
+    driver: bridge
+    internal: true
+```
+
+#### 環境變數安全管理
+
+```yaml
+secrets:
+  github_token:
+    external: true
+
+services:
+  github:
+    image: mcp/github
+    secrets:
+      - github_token
+    environment:
+      - GITHUB_TOKEN_FILE=/run/secrets/github_token
+```
+
+#### 網路隔離與監控
+
+```yaml
+falco:
+  image: falcosecurity/falco:latest
+  privileged: true
+  volumes:
+    - /var/run/docker.sock:/host/var/run/docker.sock
+    - /proc:/host/proc:ro
+    - /boot:/host/boot:ro
+    - /lib/modules:/host/lib/modules:ro
 ```
 
 #### SSE/HTTP 模式設定
