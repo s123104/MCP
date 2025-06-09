@@ -1053,7 +1053,7 @@ docker inspect container-name
 
 ```bash
 # 設定開發環境
-git clone https://github.com/your-repo/mcp-docker.git
+git clone https://github.com/s123104/mcp-docker.git
 cd mcp-docker
 
 # 安裝依賴項
@@ -1092,8 +1092,8 @@ python mcp_docker_configurator.py --dev
 
 ## 📞 支援與回饋
 
-- **問題回報**: [GitHub Issues](https://github.com/your-repo/mcp-docker/issues)
-- **功能建議**: [GitHub Discussions](https://github.com/your-repo/mcp-docker/discussions)
+- **問題回報**: [GitHub Issues](https://github.com/s123104/mcp-docker/issues)
+- **功能建議**: [GitHub Discussions](https://github.com/s123104/mcp-docker/discussions)
 - **技術支援**: [Discord 社群](https://discord.gg/mcp-docker)
 
 ## 🎉 致謝
