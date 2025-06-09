@@ -1,0 +1,3 @@
+-w /var/lib/mcp/workspace -p rwxa -k mcp-filesystem
+-w /etc/docker -p wa -k docker-config
+-w /var/run/docker.sock -p rwxa -k docker-daemon

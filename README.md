@@ -314,6 +314,29 @@ python mcp_docker_configurator.py
 
 完成配置後即可在本地或遠端安全地存取檔案。
 
+#### 🛡️ 啟用 User Namespace 隔離
+
+啟用 user namespace 可將容器內的 root 使用者映射到宿主機的非特權帳號。專案中
+已提供 `config/docker/daemon.json` 範例設定，並需建立對應的 `subuid` 及
+`subgid`：
+
+```bash
+sudo cp config/docker/daemon.json /etc/docker/daemon.json
+echo 'mcpuser:100000:65536' | sudo tee /etc/subuid /etc/subgid
+sudo systemctl restart docker
+```
+
+建立好 user namespace 後，建議以 Docker Volume 儲存工作目錄並設定正確的 UID/GID：
+
+```bash
+docker volume create \
+  --driver local \
+  --opt type=none \
+  --opt o=bind,uid=100000,gid=100000 \
+  --opt device=/var/lib/mcp/workspace \
+  mcp-workspace
+```
+
 ### 🔄 日常使用指令
 
 #### 啟動/停止虛擬環境
