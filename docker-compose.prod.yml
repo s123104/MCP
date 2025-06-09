@@ -8,6 +8,7 @@ services:
     container_name: github-mcp-prod
     environment:
       - GITHUB_TOKEN_FILE=/run/secrets/github_token
+      - ENCRYPTION_KEY_FILE=/run/secrets/encryption_key
     stdin_open: true
     tty: true
     restart: always
@@ -30,6 +31,7 @@ services:
       - mcp-prod-network
     secrets:
       - github_token
+      - encryption_key
     labels:
       - "mcp.env=production"
       - "mcp.server=github"
@@ -286,11 +288,13 @@ volumes:
 
 secrets:
   github_token:
-    file: ./secrets/github_token.txt
+    external: true
   postgres_url:
-    file: ./secrets/postgres_url.txt
+    external: true
   grafana_password:
-    file: ./secrets/grafana_password.txt
+    external: true
+  encryption_key:
+    external: true
 
 # 生產環境配置覆蓋
 configs:

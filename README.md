@@ -831,6 +831,24 @@ services:
       - GITHUB_TOKEN_FILE=/run/secrets/github_token
 ```
 
+#### 密鑰初始化與輪換
+
+使用 `scripts/init_secrets.sh` 建立 Docker secrets：
+
+```bash
+export GITHUB_TOKEN=your_token
+export POSTGRES_URL=postgresql://user:pass@db:5432/dbname
+export GRAFANA_PASSWORD=your_password
+./scripts/init_secrets.sh
+```
+
+定期執行 `scripts/rotate_secrets.sh` 以輪換 GitHub Token：
+
+```bash
+export NEW_GITHUB_TOKEN=new_token_value
+scripts/rotate_secrets.sh
+```
+
 #### 網路隔離與監控
 
 ```yaml
