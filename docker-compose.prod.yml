@@ -84,6 +84,49 @@ services:
         max-file: "3"
 
   # Puppeteer 服務器 - 生產配置
+  # Filesystem 服務器 - 生產配置
+  filesystem-mcp:
+    image: mcp/filesystem:latest
+    container_name: filesystem-mcp-prod
+    stdin_open: true
+    tty: true
+    restart: always
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+      - /var/run:rw,noexec,nosuid,size=50m
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./config/seccomp-profiles/filesystem.json
+      - apparmor:mcp-filesystem-profile
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    user: "1001:1001"
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 1.0
+    pids_limit: 100
+    networks:
+      - mcp-prod-network
+    labels:
+      - "mcp.env=production"
+      - "mcp.server=filesystem"
+      - "mcp.version=1.0"
+    healthcheck:
+      test: ["CMD", "test", "-d", "/workspace"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   puppeteer-mcp:
     image: mcp/puppeteer:latest
     container_name: puppeteer-mcp-prod

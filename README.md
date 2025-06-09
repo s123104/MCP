@@ -295,11 +295,13 @@ python mcp_docker_configurator.py
   --name secure-mcp-filesystem 
   --read-only 
   --tmpfs /tmp:rw,noexec,nosuid,size=100m 
-  --tmpfs /var/run:rw,noexec,nosuid,size=50m 
-  --security-opt no-new-privileges:true 
-  --cap-drop ALL 
-  --cap-add CHOWN 
-  --cap-add DAC_OVERRIDE 
+  --tmpfs /var/run:rw,noexec,nosuid,size=50m
+  --security-opt no-new-privileges:true
+  --security-opt seccomp=./config/seccomp-profiles/filesystem.json
+  --security-opt apparmor=mcp-filesystem-profile
+  --cap-drop ALL
+  --cap-add CHOWN
+  --cap-add DAC_OVERRIDE
   --user 1000:1000 
   --memory 256m 
   --cpus 0.5 
@@ -788,7 +790,8 @@ services:
     read_only: true
     security_opt:
       - no-new-privileges:true
-      - seccomp:./seccomp-profiles/filesystem.json
+      - seccomp:./config/seccomp-profiles/filesystem.json
+      - apparmor:mcp-filesystem-profile
     cap_drop:
       - ALL
     cap_add:

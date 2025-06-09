@@ -1,0 +1,16 @@
+#include <tunables/global>
+
+profile mcp-filesystem-profile flags=(attach_disconnected) {
+  # Allow basic file read/write within /workspace
+  capability chown,
+  capability dac_override,
+  capability fowner,
+
+  file,
+  network,
+
+  deny @{PROC}/* wklx,
+  deny /bin/** mrwklx,
+  deny /usr/bin/** mrwklx,
+  deny /usr/sbin/** mrwklx,
+}
