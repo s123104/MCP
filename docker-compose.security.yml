@@ -1,0 +1,91 @@
+# 安全監控與合規檢查配置
+version: '3.8'
+
+services:
+  falco:
+    image: falcosecurity/falco:latest
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock:ro
+      - /proc:/host/proc:ro
+      - /boot:/host/boot:ro
+      - /lib/modules:/host/lib/modules:ro
+      - ./security/falco_rules.local.yaml:/etc/falco/falco_rules.local.yaml:ro
+    environment:
+      - FALCO_GRPC_ENABLED=true
+      - FALCO_GRPC_BIND_ADDRESS=0.0.0.0:5060
+    networks:
+      - mcp-monitoring
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./security/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - mcp-monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD_FILE=/run/secrets/grafana_password
+    volumes:
+      - grafana-data:/var/lib/grafana
+    secrets:
+      - grafana_password
+    networks:
+      - mcp-monitoring
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.8.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    secrets:
+      - elastic_password
+    networks:
+      - mcp-monitoring
+
+  trivy-scanner:
+    image: aquasec/trivy:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - trivy-cache:/root/.cache/trivy
+    command: ["server", "--listen", "0.0.0.0:4954"]
+    networks:
+      - mcp-monitoring
+
+  docker-bench:
+    image: docker/docker-bench-security:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /etc/docker:/etc/docker:ro
+    command: ["sh", "-c", "while true; do /usr/local/bin/docker-bench-security.sh; sleep 3600; done"]
+    networks:
+      - mcp-monitoring
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  elasticsearch-data:
+  trivy-cache:
+
+networks:
+  mcp-monitoring:
+    driver: bridge
+    internal: true
+
+secrets:
+  grafana_password:
+    file: ./secrets/grafana_password.txt
+  elastic_password:
+    file: ./secrets/elastic_password.txt

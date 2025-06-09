@@ -1,0 +1,29 @@
+- rule: MCP Container Privilege Escalation
+  desc: Detect privilege escalation in MCP containers
+  condition: >
+    spawned_process and container and
+    proc.name in (sudo, su, doas) and
+    container.image.repository contains "mcp/"
+  output: >
+    Privilege escalation in MCP container (user=%user.name command=%proc.cmdline container=%container.name image=%container.image.repository)
+  priority: CRITICAL
+
+- rule: MCP Sensitive File Access
+  desc: Detect access to sensitive files in MCP containers
+  condition: >
+    open_read and container and
+    fd.name in (/etc/passwd, /etc/shadow, /etc/sudoers) and
+    container.image.repository contains "mcp/"
+  output: >
+    Sensitive file access in MCP container (file=%fd.name user=%user.name container=%container.name)
+  priority: HIGH
+
+- rule: MCP Network Anomaly
+  desc: Detect unusual network connections from MCP containers
+  condition: >
+    inbound_outbound and container and
+    not fd.sip in (172.20.0.0/16, 172.21.0.0/16, 172.22.0.0/16) and
+    container.image.repository contains "mcp/"
+  output: >
+    Unusual network connection from MCP container (connection=%fd.sip:%fd.sport->%fd.dip:%fd.dport container=%container.name)
+  priority: MEDIUM
