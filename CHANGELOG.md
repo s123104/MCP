@@ -1,5 +1,13 @@
 # MCP Docker 配置器更新日誌
 
+## 版本 2.0.1 (2025-05-29)
+
+### 📝 文件與配置更新
+
+- 新增 `version.txt` 保存當前版本資訊
+- 更新 README 與範例配置，加入 `filesystem`、`context7`、`firecrawl`、`puppeteer`
+
+
 ## 版本 2.0.0 (2025-05-28) 🚀
 
 ### 🎉 重大更新

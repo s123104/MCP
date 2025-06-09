@@ -86,12 +86,46 @@
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "--read-only",
-        "--security-opt", "no-new-privileges",
-        "--memory", "128m",
-        "--cpus", "0.3",
-        "-v", "${HOME}/Documents:/workspace:ro",
+        "--memory", "512m",
+        "--cpus", "1.0",
+        "-e", "ALLOWED_PATHS=/workspace:/data:/home/user/projects",
+        "-e", "MAX_FILE_SIZE=100MB",
+        "-e", "LOG_LEVEL=INFO",
+        "-e", "READ_WRITE_MODE=true",
+        "-v", "./workspace:/workspace",
+        "-v", "./data:/data",
+        "-v", "~/projects:/home/user/projects",
         "mcp/filesystem"
+      ]
+    },
+    "context7": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--memory", "512m",
+        "--cpus", "1.0",
+        "-e", "LOG_LEVEL=INFO",
+        "mcp/context7"
+      ]
+    },
+    "firecrawl": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--memory", "512m",
+        "--cpus", "1.0",
+        "-e", "LOG_LEVEL=INFO",
+        "mcp/firecrawl"
+      ]
+    },
+    "puppeteer": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--memory", "512m",
+        "--cpus", "1.0",
+        "-e", "LOG_LEVEL=INFO",
+        "mcp/puppeteer"
       ]
     }
   }
