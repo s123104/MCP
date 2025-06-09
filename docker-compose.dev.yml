@@ -50,6 +50,36 @@ services:
       - "mcp.server=time"
 
   # Puppeteer 網頁自動化服務器
+  # Filesystem 服務器
+  filesystem-mcp:
+    image: mcp/filesystem
+    container_name: filesystem-mcp-dev
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+      - /var/run:rw,noexec,nosuid,size=50m
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:./config/seccomp-profiles/filesystem.json
+      - apparmor:mcp-filesystem-profile
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    user: "1001:1001"
+    mem_limit: 512m
+    cpus: 1.0
+    networks:
+      - mcp-dev-network
+
+    labels:
+      - "mcp.env=development"
+      - "mcp.server=filesystem"
   puppeteer-mcp:
     image: mcp/puppeteer
     container_name: puppeteer-mcp-dev
