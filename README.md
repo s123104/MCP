@@ -80,10 +80,10 @@ python mcp_docker_configurator.py
 ```bash
 # 方法 1: 使用 curl 下載並執行安裝腳本 (推薦)
 # curl 會從 GitHub 下載安裝腳本並直接執行
-curl -fsSL https://raw.githubusercontent.com/s123104/MCP/main/install-mcp-docker.sh | bash
+curl -fsSL https://raw.githubusercontent.com/s123104/mcp-docker/main/install-mcp-docker.sh | bash
 
 # 方法 2: 手動下載執行
-wget https://raw.githubusercontent.com/s123104/MCP/main/install-mcp-docker.sh
+wget https://raw.githubusercontent.com/s123104/mcp-docker/main/install-mcp-docker.sh
 chmod +x install-mcp-docker.sh
 ./install-mcp-docker.sh
 ```
@@ -101,10 +101,10 @@ python mcp_docker_configurator.py
 ```powershell
 # 以管理員身份執行 PowerShell
 # 方法 1: 直接執行 (推薦)
-iwr -useb https://raw.githubusercontent.com/s123104/MCP/main/install-mcp-docker.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/s123104/mcp-docker/main/install-mcp-docker.ps1 | iex
 
 # 方法 2: 下載後執行
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/s123104/MCP/main/install-mcp-docker.ps1" -OutFile "install-mcp-docker.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/s123104/mcp-docker/main/install-mcp-docker.ps1" -OutFile "install-mcp-docker.ps1"
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .\install-mcp-docker.ps1
 ```
@@ -123,12 +123,12 @@ python mcp_docker_configurator.py
 
 ```bash
 # 使用 Git 克隆
-git clone https://github.com/s123104/MCP.git
-cd MCP
+git clone https://github.com/s123104/mcp-docker.git
+cd mcp-docker
 
 # 或下載 ZIP 檔案
-# wget https://github.com/s123104/MCP/archive/main.zip
-# unzip main.zip && cd MCP-main
+# wget https://github.com/s123104/mcp-docker/archive/main.zip
+# unzip main.zip && cd mcp-docker-main
 ```
 
 #### 步驟 2: 建立虛擬環境 (使用 uv - 推薦)
@@ -362,7 +362,7 @@ deactivate
 
 ```bash
 # 進入專案目錄並啟動虛擬環境
-cd MCP
+cd mcp-docker
 source mcp-docker-env/bin/activate  # Linux/macOS
 # mcp-docker-env\Scripts\activate    # Windows
 
@@ -588,14 +588,14 @@ ping github.com
 
 # 2. 使用代理 (如果需要)
 export https_proxy=http://proxy.example.com:8080
-curl -fsSL https://raw.githubusercontent.com/s123104/MCP/main/install-mcp-docker.sh
+curl -fsSL https://raw.githubusercontent.com/s123104/mcp-docker/main/install-mcp-docker.sh
 
 # 3. 手動下載
-wget https://github.com/s123104/MCP/archive/main.zip
+wget https://github.com/s123104/mcp-docker/archive/main.zip
 unzip main.zip
 
 # 4. 使用 Git 克隆 (如果 curl 不可用)
-git clone https://github.com/s123104/MCP.git
+git clone https://github.com/s123104/mcp-docker.git
 ```
 
 ### 📱 快速驗證安裝
@@ -632,7 +632,7 @@ python mcp_docker_configurator.py
 ## 📁 專案結構
 
 ```
-MCP/
+mcp-docker/
 ├── 📚 文檔指南
 │   ├── MCP_Docker_完整指南.md          # 完整使用指南和最佳實踐
 │   ├── MCP_Docker_完整使用指南.md      # 詳細配置說明
