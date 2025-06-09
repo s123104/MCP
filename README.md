@@ -900,6 +900,15 @@ docker-compose -f docker-compose.test.yml up -d
 docker-compose -f docker-compose.prod.yml up -d
 ```
 
+### 安全監控環境
+
+```bash
+# 部署安全監控與合規檢查
+docker-compose -f docker-compose.security.yml up -d
+```
+
+啟動後可執行 `scripts/compliance_check.sh` 產生完整的合規性報告。
+
 ## 📊 效能監控
 
 ### 資源使用統計
