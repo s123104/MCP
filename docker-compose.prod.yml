@@ -27,7 +27,7 @@ services:
     mem_reservation: 128m
     cpus: 0.5
     networks:
-      - mcp-prod-network
+      - mcp-backend
     secrets:
       - github_token
     labels:
@@ -67,7 +67,7 @@ services:
     mem_reservation: 64m 
     cpus: 0.2
     networks:
-      - mcp-prod-network
+      - mcp-backend
     labels:
       - "mcp.env=production"
       - "mcp.server=time"
@@ -104,7 +104,7 @@ services:
     mem_reservation: 512m
     cpus: 1.0
     networks:
-      - mcp-prod-network
+      - mcp-backend
     shm_size: 2gb
     labels:
       - "mcp.env=production"
@@ -142,7 +142,7 @@ services:
     mem_reservation: 256m
     cpus: 0.5
     networks:
-      - mcp-prod-network
+      - mcp-data
     secrets:
       - postgres_url
     labels:
@@ -172,7 +172,7 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
     networks:
-      - mcp-prod-network
+      - mcp-frontend
     labels:
       - "mcp.env=production"
       - "mcp.type=proxy"
@@ -200,7 +200,7 @@ services:
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
     networks:
-      - mcp-prod-network
+      - mcp-frontend
     labels:
       - "mcp.env=production"
       - "mcp.type=monitoring"
@@ -219,7 +219,7 @@ services:
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     networks:
-      - mcp-prod-network
+      - mcp-frontend
     secrets:
       - grafana_password
     labels:
@@ -239,23 +239,49 @@ services:
       - "24224:24224"
       - "24224:24224/udp"
     networks:
-      - mcp-prod-network
+      - mcp-backend
     labels:
       - "mcp.env=production"
       - "mcp.type=logging"
     restart: always
 
+  network-policy:
+    image: alpine/socat
+    command: ["sh", "-c", "iptables -I DOCKER-USER -s 172.20.0.0/24 -d 172.21.0.0/24 -j ACCEPT && iptables -I DOCKER-USER -j DROP"]
+    network_mode: host
+    privileged: true
+    volumes:
+      - /etc/iptables:/etc/iptables
+
 networks:
-  mcp-prod-network:
+  mcp-frontend:
     driver: bridge
     ipam:
-      driver: default
       config:
-        - subnet: 172.22.0.0/16
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1
     driver_opts:
-      com.docker.network.bridge.name: mcp-prod0
       com.docker.network.bridge.enable_icc: "false"
-      com.docker.network.bridge.enable_ip_masquerade: "true"
+    labels:
+      - "mcp.env=production"
+
+  mcp-backend:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+          gateway: 172.21.0.1
+    labels:
+      - "mcp.env=production"
+
+  mcp-data:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
+          gateway: 172.22.0.1
     labels:
       - "mcp.env=production"
 

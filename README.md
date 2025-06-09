@@ -807,12 +807,28 @@ services:
     environment:
       - ALLOWED_PATHS=/workspace
     networks:
-      - mcp-isolated
+      - mcp-backend
 
 networks:
-  mcp-isolated:
+  mcp-frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+    driver_opts:
+      com.docker.network.bridge.enable_icc: "false"
+  mcp-backend:
     driver: bridge
     internal: true
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+  mcp-data:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
 ```
 
 #### 環境變數安全管理
