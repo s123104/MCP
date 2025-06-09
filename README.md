@@ -4,6 +4,8 @@
 [![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED)](https://docker.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+目前版本：v2.0.1
+
 基於真實 Docker Hub MCP Catalog 的完整 Model Context Protocol Docker 使用方案，包含自動化安裝、GUI 配置器和生產環境部署指南。
 
 > **新手提示**：建議直接使用內建圖形化工具 `mcp_docker_configurator.py` 完成安裝與配置。以下流程將以 GUI 操作為核心說明。
@@ -693,25 +695,77 @@ mcp-docker/
 ```json
 {
   "mcpServers": {
-    "github": {
+    "filesystem": {
       "command": "docker",
       "args": [
         "run",
         "-i",
         "--rm",
-        "--security-opt",
-        "no-new-privileges",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1.0",
         "-e",
-        "GITHUB_TOKEN",
-        "mcp/github"
-      ],
-      "env": {
-        "GITHUB_TOKEN": "your_github_token_here"
-      }
+        "ALLOWED_PATHS=/workspace:/data:/home/user/projects",
+        "-e",
+        "MAX_FILE_SIZE=100MB",
+        "-e",
+        "LOG_LEVEL=INFO",
+        "-e",
+        "READ_WRITE_MODE=true",
+        "-v",
+        "./workspace:/workspace",
+        "-v",
+        "./data:/data",
+        "-v",
+        "~/projects:/home/user/projects",
+        "mcp/filesystem"
+      ]
     },
-    "time": {
+    "context7": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "mcp/time"]
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1.0",
+        "-e",
+        "LOG_LEVEL=INFO",
+        "mcp/context7"
+      ]
+    },
+    "firecrawl": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1.0",
+        "-e",
+        "LOG_LEVEL=INFO",
+        "mcp/firecrawl"
+      ]
+    },
+    "puppeteer": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--memory",
+        "512m",
+        "--cpus",
+        "1.0",
+        "-e",
+        "LOG_LEVEL=INFO",
+        "mcp/puppeteer"
+      ]
     }
   }
 }
