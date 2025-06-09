@@ -258,7 +258,7 @@ links: ## 顯示相關連結
 	@echo "  Docker Hub MCP: https://hub.docker.com/catalogs/mcp"
 	@echo "  Docker 官方文檔: https://docs.docker.com/ai/mcp-catalog-and-toolkit/"
 	@echo "  Claude Desktop: https://claude.ai/desktop"
-	@echo "  GitHub 專案: https://github.com/your-repo/mcp-docker"
+	@echo "  GitHub 專案: https://github.com/s123104/mcp-docker"
 
 ##@ 🔧 進階操作
 
